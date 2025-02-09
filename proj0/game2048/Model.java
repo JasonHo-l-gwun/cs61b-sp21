@@ -217,9 +217,8 @@ public class Model extends Observable {
         int size = b.size();
         for(int col = 0; col < size; col++) {
             for(int row = 0; row < size; row++) {
-                if (b.tile(col,row) == null){
-                    continue;
-                } else if (b.tile(col,row).value() == MAX_PIECE){
+                Tile t = b.tile(col, row);
+                if (t != null &&b.tile(col,row).value() == MAX_PIECE){
                     return true;
                 }
             }
@@ -243,13 +242,13 @@ public class Model extends Observable {
                 for(int row = 0; row < size; row++) {
                     Tile curr = b.tile(col, row);
                     if (col + 1 < size) {
-                        Tile right = b.tile(row, col + 1);
+                        Tile right = b.tile(col + 1, row);
                         if (right != null && right.value() == curr.value()) {
                             return true;
                         }
                     }
                     if (row + 1 < size) {
-                        Tile up = b.tile(row + 1, col);
+                        Tile up = b.tile(col, row + 1);
                         if (up != null && up.value() == curr.value()) {
                             return true;
                         }
