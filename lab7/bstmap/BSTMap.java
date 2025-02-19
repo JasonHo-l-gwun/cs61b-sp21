@@ -2,16 +2,16 @@ package bstmap;
 
 import java.util.*;
 
-public class BSTMap <Key extends Comparable<Key>, Value> implements Map61B<Key,Value> {
+public class BSTMap <K extends Comparable<K>,V> implements Map61B<K, V> {
     private Node root;
     private class Node {
-        public Key key;
-        public Value value;
+        public K key;
+        public V value;
         public Node left;
         public Node right;
         int N;
 
-        Node(Key key, Value value) {
+        Node(K key, V value) {
             this.key = key;
             this.value = value;
             this.N = 1;
@@ -21,17 +21,16 @@ public class BSTMap <Key extends Comparable<Key>, Value> implements Map61B<Key,V
     @Override
     public void clear() {
         while (root != null) {
-            Node t = root;
             remove(root.key);
         }
     }
 
     @Override
-    public boolean containsKey(Key key) {
+    public boolean containsKey(K key) {
         return containsKey(root, key);
     }
 
-    private boolean containsKey(Node x, Key key) {
+    private boolean containsKey(Node x, K key) {
         if (x == null) return false;
         int cmp = key.compareTo(x.key);
         if (cmp < 0) return containsKey(x.left, key);
@@ -40,13 +39,13 @@ public class BSTMap <Key extends Comparable<Key>, Value> implements Map61B<Key,V
     }
 
     @Override
-    public Value get(Key key) {
+    public V get(K key) {
         Node t = get(root,key);
         if (t == null) return null;
         return t.value;
     }
 
-    private Node get(Node x, Key key) {
+    private Node get(Node x, K key) {
         if (x == null) return null;
         int cmp = key.compareTo(x.key);
         if (cmp < 0) return get(x.left, key);
@@ -65,11 +64,11 @@ public class BSTMap <Key extends Comparable<Key>, Value> implements Map61B<Key,V
     }
 
     @Override
-    public void put(Key key, Value value) {
+    public void put(K key, V value) {
         root = put(root, key, value);
     }
 
-    private Node put(Node x, Key key, Value value) {
+    private Node put(Node x, K key, V value) {
         if (x == null) return new Node(key,value);
         int cmp = key.compareTo(x.key);
         if (cmp < 0) x.left = put(x.left, key, value);
@@ -80,13 +79,13 @@ public class BSTMap <Key extends Comparable<Key>, Value> implements Map61B<Key,V
     }
 
     @Override
-    public Set<Key> keySet() {
-        Set<Key> keySet = new HashSet<>();
+    public Set<K> keySet() {
+        Set<K> keySet = new HashSet<>();
         keySetHelper(root, keySet);
         return keySet;
     }
 
-    private void keySetHelper(Node node, Set<Key> keySet) {
+    private void keySetHelper(Node node, Set<K> keySet) {
         if (node == null) return;
         keySetHelper(node.left, keySet);
         keySet.add(node.key);
@@ -94,16 +93,16 @@ public class BSTMap <Key extends Comparable<Key>, Value> implements Map61B<Key,V
     }
 
     @Override
-    public Value remove(Key key) {
+    public V remove(K key) {
         if (containsKey(key)) {
-            Value value = get(key);
+            V value = get(key);
             root = remove(root, key);
             return value;
         }
         return null;
     }
 
-    private Node remove(Node x, Key key) {
+    private Node remove(Node x, K key) {
         if (x == null) return null;
         int cmp = key.compareTo(x.key);
         if (cmp < 0) x.left = remove(x.left, key);
@@ -142,18 +141,18 @@ public class BSTMap <Key extends Comparable<Key>, Value> implements Map61B<Key,V
     }
 
     @Override
-    public Value remove(Key key, Value value) {
-        Value val = get(key);
+    public V remove(K key, V value) {
+        V val = get(key);
         if (val == value) remove(key);
         return val;
     }
 
     @Override
-    public Iterator<Key> iterator() {
+    public Iterator<K> iterator() {
         return new BSTIterator();
     }
 
-    private void keys(Node x, Queue<Key> queue) {
+    private void keys(Node x, Queue<K> queue) {
         if (x == null) return;
         keys(x.left, queue);
         queue.add(x.key);
@@ -172,7 +171,7 @@ public class BSTMap <Key extends Comparable<Key>, Value> implements Map61B<Key,V
     }
 
     private class BSTIterator implements Iterator{
-        private Queue<Key> queue;
+        private Queue<K> queue;
 
         BSTIterator() {
             queue = new LinkedList<>();
@@ -185,7 +184,7 @@ public class BSTMap <Key extends Comparable<Key>, Value> implements Map61B<Key,V
         }
 
         @Override
-        public Key next() {
+        public K next() {
             return queue.remove();
         }
     }
