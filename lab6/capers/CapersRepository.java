@@ -1,6 +1,8 @@
 package capers;
 
 import java.io.File;
+import java.io.IOException;
+
 import static capers.Utils.*;
 
 /** A repository for Capers 
@@ -18,7 +20,7 @@ public class CapersRepository {
     static final File CWD = new File(System.getProperty("user.dir"));
 
     /** Main metadata folder. */
-    static final File CAPERS_FOLDER = null; // TODO Hint: look at the `join`
+    static final File CAPERS_FOLDER = join(CWD,".capers"); // TODO Hint: look at the `join`
                                             //      function in Utils
 
     /**
@@ -30,8 +32,13 @@ public class CapersRepository {
      *    - dogs/ -- folder containing all of the persistent data for dogs
      *    - story -- file containing the current story
      */
-    public static void setupPersistence() {
-        // TODO
+    public static void setupPersistence() throws IOException {
+        // TODO 初始化
+        if (!CAPERS_FOLDER.exists()) CAPERS_FOLDER.mkdir();
+        File dogsFolder = join(CAPERS_FOLDER, "dogs");
+        if (!dogsFolder.exists()) dogsFolder.mkdir();
+        File storyFile = join(CAPERS_FOLDER, "story");
+        if (!storyFile.exists()) storyFile.createNewFile();
     }
 
     /**
@@ -40,7 +47,13 @@ public class CapersRepository {
      * @param text String of the text to be appended to the story
      */
     public static void writeStory(String text) {
-        // TODO
+        // TODO 把文本写入story文件
+        File storyFile = join(CAPERS_FOLDER, "story");
+
+        String currentStory = Utils.readContentsAsString(storyFile);
+        String updatedStory = currentStory + text + "\n";
+        Utils.writeContents(storyFile, updatedStory);
+        System.out.println(updatedStory);
     }
 
     /**
@@ -48,8 +61,10 @@ public class CapersRepository {
      * three non-command arguments of args (name, breed, age).
      * Also prints out the dog's information using toString().
      */
-    public static void makeDog(String name, String breed, int age) {
-        // TODO
+    public static void makeDog(String name, String breed, int age) throws IOException {
+        // TODO 新建一个狗对象,并保存到dogs
+        Dog dog = new Dog(name, breed, age);
+        dog.saveDog();
     }
 
     /**
@@ -58,7 +73,10 @@ public class CapersRepository {
      * Chooses dog to advance based on the first non-command argument of args.
      * @param name String name of the Dog whose birthday we're celebrating.
      */
-    public static void celebrateBirthday(String name) {
-        // TODO
+    public static void celebrateBirthday(String name) throws IOException {
+        // TODO 给狗庆祝生日,并把更新后的信息保存
+        Dog dog =Dog.fromFile(name);
+        dog.haveBirthday();
+        dog.saveDog();
     }
 }
