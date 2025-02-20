@@ -33,7 +33,7 @@ public class CapersRepository {
      *    - story -- file containing the current story
      */
     public static void setupPersistence() throws IOException {
-        // TODO 初始化
+        // TODO
         if (!CAPERS_FOLDER.exists()) CAPERS_FOLDER.mkdir();
         File dogsFolder = join(CAPERS_FOLDER, "dogs");
         if (!dogsFolder.exists()) dogsFolder.mkdir();
@@ -47,7 +47,7 @@ public class CapersRepository {
      * @param text String of the text to be appended to the story
      */
     public static void writeStory(String text) {
-        // TODO 把文本写入story文件
+        // TODO
         File storyFile = join(CAPERS_FOLDER, "story");
 
         String currentStory = Utils.readContentsAsString(storyFile);
@@ -62,7 +62,7 @@ public class CapersRepository {
      * Also prints out the dog's information using toString().
      */
     public static void makeDog(String name, String breed, int age) throws IOException {
-        // TODO 新建一个狗对象,并保存到dogs
+        //
         Dog dog = new Dog(name, breed, age);
         dog.saveDog();
     }
@@ -74,7 +74,7 @@ public class CapersRepository {
      * @param name String name of the Dog whose birthday we're celebrating.
      */
     public static void celebrateBirthday(String name) throws IOException {
-        // TODO 给狗庆祝生日,并把更新后的信息保存
+        // TODO
         Dog dog =Dog.fromFile(name);
         dog.haveBirthday();
         dog.saveDog();
