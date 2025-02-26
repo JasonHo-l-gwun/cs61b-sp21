@@ -24,19 +24,19 @@ public class Commit implements Serializable {
      */
 
     /** The message of this Commit. */
-    private String message;
+    private final String message;
     /** THe author of this Commit.*/
     private String author;
     /** THe timestamp of this Commit.*/
-    private Date date;
+    private final Date date;
     /** THe hash of this Commit.*/
     private String uid;
     /** THe hash of this Commit's parent 1.*/
-    private String parents1;
+    private final String parents1;
     /** THe hash of this Commit's parent 2.*/
-    private String parents2;
+    private final String parents2;
     /** THe blobs of this Commit.*/
-    private TreeMap<String,String> blobs;
+    private final TreeMap<String,String> blobs;
 
 
     /* TODO: fill in the rest of this class. */
