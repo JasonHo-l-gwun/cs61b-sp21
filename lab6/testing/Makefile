@@ -11,7 +11,7 @@ SHELL = /bin/bash
 JFLAGS = -ea
 
 # See comment in ../Makefile
-PYTHON = py
+PYTHON = python3
 
 RMAKE = "$(MAKE)"
 
