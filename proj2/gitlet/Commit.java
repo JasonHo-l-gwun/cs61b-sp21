@@ -4,9 +4,7 @@ package gitlet;
 
 import javax.xml.crypto.Data;
 import java.io.Serializable;
-import java.util.Date; // TODO: You'll likely use this in this class
-import java.util.Formatter;
-import java.util.TreeMap;
+import java.util.*;
 
 /** Represents a gitlet commit object.
  *  TODO: It's a good idea to give a description here of what else this Class
@@ -32,24 +30,32 @@ public class Commit implements Serializable {
     /** THe hash of this Commit.*/
     private String uid;
     /** THe hash of this Commit's parent 1.*/
-    private final String parents1;
+    private final String parents;
     /** THe hash of this Commit's parent 2.*/
-    private final String parents2;
+    // private final String parents2;
     /** THe blobs of this Commit.*/
     private final TreeMap<String,String> blobs;
 
 
     /* TODO: fill in the rest of this class. */
-    Commit(String message, Date date, String parents1, String parents2, TreeMap<String,String> blobs) {
+    Commit(String message, Date date, String parents, TreeMap<String,String> blobs) {
         this.date = date;
         this.message = message;
         this.blobs = blobs;
-        this.parents1 = parents1;
-        this.parents2 = parents2;
+        this.parents = parents;
     }
 
-    public void setUid(String uid) {
-        this.uid = uid;
+    public void setUid() {
+        List<byte[]> list = new ArrayList<>();
+        list.add(Utils.serialize(message));
+        list.add(Utils.serialize(date));
+        list.add(Utils.serialize(parents));
+        list.add(Utils.serialize(blobs));
+        this.uid = Utils.sha1(list);
+    }
+
+    public String getUid() {
+        return uid;
     }
 
     public TreeMap<String,String> getBlobs() {

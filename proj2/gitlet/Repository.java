@@ -41,7 +41,7 @@ public class Repository {
     public static final File RM_DIR = join(GITLET_DIR, "rm");
     /** The remove staged File to store the staged for addition data */
     public static final File RM_FILE = join(RM_DIR, "addStaged");
-
+    public static final File HEAD_FILE = join(GITLET_DIR, "head");
     /** The head pointer */
     public static String head;
     /** the branches */
@@ -60,11 +60,9 @@ public class Repository {
         }
 
         GITLET_DIR.mkdir();
-        Commit initCommit = new Commit("initial commit", new Date(0), null, null, null);
-        byte[] serializedCommit = Utils.serialize(initCommit);
-        String commitHash = Utils.sha1(serializedCommit);
-        initCommit.setUid(commitHash);
-
+        Commit initCommit = new Commit("initial commit", new Date(0), null, null);
+        initCommit.setUid();
+        String commitHash = initCommit.getUid();
         COMMIT_DIR.mkdir();
         File currentCommitFile = join(COMMIT_DIR, commitHash);
         currentCommitFile.createNewFile();
@@ -73,12 +71,14 @@ public class Repository {
         BLOB_DIR.mkdir();
         ADD_DIR.mkdir();
         RM_DIR.mkdir();
+        HEAD_FILE.createNewFile();
         addStaged = new TreeMap<>();
         rmStaged = new TreeMap<>();
         branches = new TreeMap<>();
         currentBranch = "master";
         head = commitHash;
         branches.put(currentBranch, commitHash);
+        Utils.writeObject(HEAD_FILE, head);
     }
 
     public static void add(String fileName) throws IOException {
@@ -135,4 +135,76 @@ public class Repository {
             Utils.writeContents(addedFile, fileContent);
         }
     }
+
+    public static void commit(String massage) throws IOException {
+        if (!GITLET_DIR.exists()) {
+            System.out.println("Not in an initialized Gitlet directory.");
+            System.exit(0);
+        }
+        if (addStaged.isEmpty() && rmStaged.isEmpty()) {
+            System.out.println("No changes added to the commit.");
+            System.exit(0);
+        }
+        if (massage.isEmpty()) {
+            System.out.println("Please enter a commit message.");
+            System.exit(0);
+        }
+
+        Date currentDate = new Date();
+        /** Create a new map to store the new blobs for the new commit */
+        Commit currentCommit = getCurrentCommit();
+        TreeMap<String,String> newBlobs = new TreeMap<>(currentCommit.getBlobs());
+        /** Update the map according to the stage area */
+        for (String fileName : addStaged.keySet()) {
+            String fileHash = addStaged.get(fileName);
+            newBlobs.put(fileName, fileHash);
+            File blob = join(BLOB_DIR, fileHash);
+            File file = join(ADD_DIR, fileHash);
+            if (!blob.exists()) {
+                blob.createNewFile();
+                byte[] fileContent = Utils.readContents(file);
+                Utils.writeContents(blob, fileContent);
+            }
+            Utils.restrictedDelete(file);
+        }
+        for (String fileName : rmStaged.keySet()) {
+            String fileHash = rmStaged.get(fileName);
+            newBlobs.remove(fileName, fileHash);
+            File file = join(RM_DIR, fileHash);
+            Utils.restrictedDelete(file);
+        }
+        /** Create the new commit object*/
+        Commit newCommit = new Commit(massage, currentDate, head, newBlobs);
+        /** Write it to the file */
+        newCommit.setUid();
+        String commitHash = newCommit.getUid();
+        File newCommitFile = join(COMMIT_DIR, commitHash);
+        Utils.writeObject(newCommitFile, newCommit);
+        /** Update the head */
+        head = commitHash;
+        Utils.writeObject(HEAD_FILE, head);
+        /** Update the stage area */
+        addStaged.clear();
+        Utils.writeObject(ADD_FILE, addStaged);
+        rmStaged.clear();
+        Utils.writeObject(RM_FILE, rmStaged);
+
+    }
+
+    /** Helper function */
+    public static TreeMap<String, String> getAddStaged() {
+        if (!ADD_FILE.exists()) return new TreeMap<>();
+        return readObject(ADD_FILE, TreeMap.class);
+    }
+
+    public static void saveAddStaged() {
+        writeObject(ADD_FILE, addStaged);
+    }
+
+    private static Commit getCurrentCommit() {
+        String currentCommitHash = Utils.readObject(HEAD_FILE, String.class);
+        File commitFile = Utils.join(COMMIT_DIR, currentCommitHash);
+        return Utils.readObject(commitFile, Commit.class);
+    }
 }
+
