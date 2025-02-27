@@ -40,13 +40,13 @@ public class Repository {
     public static final File RM_DIR = join(GITLET_DIR, "rm");
     /** The remove staged File to store the staged for addition data */
     public static final File RM_FILE = join(RM_DIR, "addStaged");
-    public static final File HEAD_FILE = join(GITLET_DIR, "head");
     public static final File BRANCHES_FILE = join(GITLET_DIR, "branches");
+    public static final File CURRENT_BRANCH_FILE = join(GITLET_DIR, "currentBranch");
 
     public static void init() throws IOException {
         if (GITLET_DIR.exists()) {
             System.out.println("A Gitlet version-control system already exists in the current directory.");
-            return;
+            System.exit(0);
         }
 
         GITLET_DIR.mkdir();
@@ -62,7 +62,6 @@ public class Repository {
         BLOB_DIR.mkdir();
         ADD_DIR.mkdir();
         RM_DIR.mkdir();
-        HEAD_FILE.createNewFile();
         TreeMap<String,String> addStaged = new TreeMap<>();
         Utils.writeObject(ADD_FILE, addStaged);
         TreeMap<String,String> rmStaged = new TreeMap<>();
@@ -70,18 +69,15 @@ public class Repository {
         TreeMap<String,String> branches = new TreeMap<>();
         branches.put("master", commitHash);
         Utils.writeObject(BRANCHES_FILE, branches);
-        Utils.writeObject(HEAD_FILE, commitHash);
-        branches.put("master", commitHash);
-        Utils.writeObject(HEAD_FILE, branches);
+        Utils.writeObject(CURRENT_BRANCH_FILE, "master");
     }
 
     public static void add(String fileName) throws IOException {
         hasGitletDir();
-
         File addFile = join(CWD, fileName);
         if (!addFile.exists()) {
             System.out.println("File does not exist.");
-            return;
+            System.exit(0);
         }
 
         TreeMap<String,String> addStaged = getAddStaged();
@@ -101,9 +97,10 @@ public class Repository {
         boolean sameFileInCommit = currentCommit.getBlobs().containsKey(fileName)
                                             && currentCommit.getBlobs().get(fileName).equals(fileHash);
         if (sameFileInCommit && addStaged.containsKey(fileName)) {
+            String stagedHash = addStaged.get(fileName);
             addStaged.remove(fileName);
             Utils.writeObject(ADD_FILE, addStaged);
-            File stagedFile = join(ADD_DIR, fileName);
+            File stagedFile = join(ADD_DIR, stagedHash);
             Utils.restrictedDelete(stagedFile);
             return;
         } else if(sameFileInCommit) return;
@@ -111,9 +108,10 @@ public class Repository {
          * remove it from the staged for addition
          * */
         if (rmStaged.containsKey(fileName)) {
+            String stagedHash = addStaged.get(fileName);
             rmStaged.remove(fileName);
             Utils.writeObject(RM_FILE, rmStaged);
-            File stagedFile = join(RM_DIR, fileName);
+            File stagedFile = join(RM_DIR, stagedHash);
             Utils.restrictedDelete(stagedFile);
         }
         addStaged.put(fileName, fileHash);
@@ -143,10 +141,10 @@ public class Repository {
             System.out.println("Please enter a commit message.");
             System.exit(0);
         }
-        String head = getHead();
         Date currentDate = new Date();
         /** Create a new map to store the new blobs for the new commit */
         Commit currentCommit = getCurrentCommit();
+        String currentCommitUid = currentCommit.getUid();
         TreeMap<String,String> newBlobs = new TreeMap<>(currentCommit.getBlobs());
         /** Update the map according to the stage area */
         for (String fileName : addStaged.keySet()) {
@@ -168,15 +166,18 @@ public class Repository {
             Utils.restrictedDelete(file);
         }
         /** Create the new commit object*/
-        Commit newCommit = new Commit(message, currentDate, head, null, newBlobs);
+        Commit newCommit = new Commit(message, currentDate, currentCommitUid, null, newBlobs);
         /** Write it to the file */
         newCommit.setUid();
         String commitHash = newCommit.getUid();
         File newCommitFile = join(COMMIT_DIR, commitHash);
         Utils.writeObject(newCommitFile, newCommit);
-        /** Update the head */
-        head = commitHash;
-        Utils.writeObject(HEAD_FILE, head);
+        /** Update the branches */
+        String currentBranchName = getCurrentBranchName();
+        String head = commitHash;
+        TreeMap<String,String> branches = getBranches();
+        branches.put(currentBranchName,head);
+        Utils.writeObject(BRANCHES_FILE, branches);
         /** Update the stage area */
         addStaged.clear();
         Utils.writeObject(ADD_FILE, addStaged);
@@ -213,6 +214,7 @@ public class Repository {
     }
 
     public static void log() {
+        hasGitletDir();
         Commit commit = getCurrentCommit();
         while (commit != null) {
             printLog(commit);
@@ -221,6 +223,7 @@ public class Repository {
     }
 
     public static void globalLog() {
+        hasGitletDir();
         List<String> commitList = Utils.plainFilenamesIn(COMMIT_DIR);
         for (int i = 0; i < commitList.size(); i++) {
             Commit commit = getCommit(commitList.get(i));
@@ -265,7 +268,7 @@ public class Repository {
 
     /** To get the staged for addition */
     private static TreeMap<String, String> getRmStaged() {
-        if (!ADD_FILE.exists()) return new TreeMap<>();
+        if (!RM_FILE.exists()) return new TreeMap<>();
         return Utils.readObject(RM_FILE, TreeMap.class);
     }
 
@@ -274,15 +277,20 @@ public class Repository {
         Utils.writeObject(RM_FILE, rmStaged);
     }
 
-    /** To get the head pointer */
-    private static String getHead() {
-        if (!HEAD_FILE.exists()) return null;
-        return Utils.readObject(HEAD_FILE, String.class);
+    /** To get the current branch */
+    private static String getCurrentBranchName() {
+        return Utils.readObject(CURRENT_BRANCH_FILE, String.class);
     }
 
+    /** to get branches */
+    private static TreeMap<String,String> getBranches() {
+        return Utils.readObject(BRANCHES_FILE, TreeMap.class);
+    }
     /** To get the head pointer current*/
     private static Commit getCurrentCommit() {
-        String currentCommitUid = Utils.readObject(HEAD_FILE, String.class);
+        String currrentBranch = getCurrentBranchName();
+        TreeMap<String,String> branches = Utils.readObject(BRANCHES_FILE, TreeMap.class);
+        String currentCommitUid = branches.get(currrentBranch);
         return getCommit(currentCommitUid);
     }
 
@@ -294,6 +302,7 @@ public class Repository {
         return Utils.readObject(parentCommitFile, Commit.class);
     }
 
+    /** Pass in the uid of the commit,return the corresponding commit */
     private static Commit getCommit(String commitUid) {
         if (commitUid == null) return null;
         File commitFile = Utils.join(COMMIT_DIR, commitUid);
@@ -301,18 +310,21 @@ public class Repository {
     }
     /** Print the log for commit */
     private static void printLog(Commit commit) {
-        System.out.print("===");
-        System.out.print("commit " + commit.getUid());
+        System.out.println("===");
+        System.out.println("commit " + commit.getUid());
         if (commit.getParent2() != null) {
-            System.out.println("Merge: " + commit.getParent1().substring(0,7) + commit.getParent2().substring(0,7));
+            String p1 = commit.getParent1().substring(0,7);
+            String p2 = commit.getParent2().substring(0,7);
+            System.out.println("Merge: " + p1 + " " + p2);
         }
         Formatter formatter = new Formatter(Locale.US);
         String dateStr = formatter.format(
                 "%1$ta %1$tb %1$td %1$tT %1$tY %1$tz",
                 commit.getDate()
         ).toString();
-        System.out.print("Date: " + dateStr);
+        System.out.println("Date: " + dateStr);
         System.out.println(commit.getMessage());
+        System.out.println();
     }
 }
 

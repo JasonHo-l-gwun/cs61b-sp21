@@ -51,6 +51,7 @@ public class Commit implements Serializable {
         list.add(Utils.serialize(message));
         list.add(Utils.serialize(date));
         list.add(Utils.serialize(parent1));
+        if (parent2 != null) list.add(Utils.serialize(parent2));
         list.add(Utils.serialize(blobs));
         this.uid = Utils.sha1(list);
     }
@@ -60,8 +61,7 @@ public class Commit implements Serializable {
     }
 
     public TreeMap<String,String> getBlobs() {
-        if (this.blobs == null) return new TreeMap<>();
-        return this.blobs;
+        return blobs == null ? new TreeMap<>() : blobs;
     }
 
     public String getParent1() {
