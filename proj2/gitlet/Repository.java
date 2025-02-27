@@ -42,16 +42,7 @@ public class Repository {
     /** The remove staged File to store the staged for addition data */
     public static final File RM_FILE = join(RM_DIR, "addStaged");
     public static final File HEAD_FILE = join(GITLET_DIR, "head");
-    /** The head pointer */
-    public static String head;
-    /** the branches */
-    public static TreeMap<String,String> branches;
-    public static String currentBranch;
-    /** staged for additions */
-    public static TreeMap<String,String> addStaged;
-    /** staged for removal */
-    public static TreeMap<String,String> rmStaged;
-
+    public static final File BRANCHES_FILE = join(GITLET_DIR, "branches");
 
     public static void init() throws IOException {
         if (GITLET_DIR.exists()) {
@@ -68,17 +59,21 @@ public class Repository {
         currentCommitFile.createNewFile();
         writeObject(currentCommitFile, initCommit);
 
+        /** Initial the directory and file */
         BLOB_DIR.mkdir();
         ADD_DIR.mkdir();
         RM_DIR.mkdir();
         HEAD_FILE.createNewFile();
-        addStaged = new TreeMap<>();
-        rmStaged = new TreeMap<>();
-        branches = new TreeMap<>();
-        currentBranch = "master";
-        head = commitHash;
-        branches.put(currentBranch, commitHash);
-        Utils.writeObject(HEAD_FILE, head);
+        TreeMap<String,String> addStaged = new TreeMap<>();
+        Utils.writeObject(ADD_FILE, addStaged);
+        TreeMap<String,String> rmStaged = new TreeMap<>();
+        Utils.writeObject(RM_FILE, rmStaged);
+        TreeMap<String,String> branches = new TreeMap<>();
+        branches.put("master", commitHash);
+        Utils.writeObject(BRANCHES_FILE, branches);
+        Utils.writeObject(HEAD_FILE, commitHash);
+        branches.put("master", commitHash);
+        Utils.writeObject(HEAD_FILE, branches);
     }
 
     public static void add(String fileName) throws IOException {
@@ -93,24 +88,28 @@ public class Repository {
             return;
         }
 
+        TreeMap<String,String> addStaged = getAddStaged();
+        TreeMap<String,String> rmStaged = getRmStaged();
         byte[] fileByte = readContents(addFile);
         String fileHash = Utils.sha1(fileByte);
         /** If the staged for addition has the file is same to the add file,don't add it */
         boolean sameFileInStage = addStaged.containsKey(fileName) && addStaged.get(fileName).equals(fileHash);
         if (sameFileInStage) return;
-        File currentCommitFile = join(COMMIT_DIR, head);
-        Commit currentCommit = Utils.readObject(currentCommitFile, Commit.class);
+        Commit currentCommit = getCurrentCommit();
         /** If the current version has the file is same to the add file
          * however it's different to the file in the staged for addition
          * remove the file in the stage for addition
          * or there is no file in stage for addition have the same name to it
          * don't add it
          * */
-        boolean sameFileInCommit = currentCommit.getBlobs() != null && currentCommit.getBlobs().containsKey(fileName) && currentCommit.getBlobs().get(fileName).equals(fileHash);
+        boolean sameFileInCommit = currentCommit.getBlobs() != null
+                                        && currentCommit.getBlobs().containsKey(fileName)
+                                            && currentCommit.getBlobs().get(fileName).equals(fileHash);
         if (sameFileInCommit && addStaged.containsKey(fileName)) {
             addStaged.remove(fileName);
             Utils.writeObject(ADD_FILE, addStaged);
-            Utils.restrictedDelete(fileHash);
+            File stagedFile = join(ADD_DIR, fileName);
+            Utils.restrictedDelete(stagedFile);
             return;
         } else if(sameFileInCommit) return;
         /** If the staged for addition has the same file to the addFile,
@@ -119,7 +118,8 @@ public class Repository {
         if (rmStaged.containsKey(fileName)) {
             rmStaged.remove(fileName);
             Utils.writeObject(RM_FILE, rmStaged);
-            Utils.restrictedDelete(fileHash);
+            File stagedFile = join(RM_DIR, fileName);
+            Utils.restrictedDelete(stagedFile);
         }
         addStaged.put(fileName, fileHash);
         Utils.writeObject(ADD_FILE, addStaged);
@@ -141,6 +141,8 @@ public class Repository {
             System.out.println("Not in an initialized Gitlet directory.");
             System.exit(0);
         }
+        TreeMap<String,String> addStaged = getAddStaged();
+        TreeMap<String,String> rmStaged = getRmStaged();
         if (addStaged.isEmpty() && rmStaged.isEmpty()) {
             System.out.println("No changes added to the commit.");
             System.exit(0);
@@ -149,7 +151,7 @@ public class Repository {
             System.out.println("Please enter a commit message.");
             System.exit(0);
         }
-
+        String head = getHead();
         Date currentDate = new Date();
         /** Create a new map to store the new blobs for the new commit */
         Commit currentCommit = getCurrentCommit();
@@ -158,14 +160,14 @@ public class Repository {
         for (String fileName : addStaged.keySet()) {
             String fileHash = addStaged.get(fileName);
             newBlobs.put(fileName, fileHash);
-            File blob = join(BLOB_DIR, fileHash);
             File file = join(ADD_DIR, fileHash);
+            Utils.restrictedDelete(file);
+            File blob = join(BLOB_DIR, fileHash);
             if (!blob.exists()) {
                 blob.createNewFile();
                 byte[] fileContent = Utils.readContents(file);
                 Utils.writeContents(blob, fileContent);
             }
-            Utils.restrictedDelete(file);
         }
         for (String fileName : rmStaged.keySet()) {
             String fileHash = rmStaged.get(fileName);
@@ -188,17 +190,31 @@ public class Repository {
         Utils.writeObject(ADD_FILE, addStaged);
         rmStaged.clear();
         Utils.writeObject(RM_FILE, rmStaged);
-
     }
 
     /** Helper function */
-    public static TreeMap<String, String> getAddStaged() {
+    
+    private static TreeMap<String, String> getAddStaged() {
         if (!ADD_FILE.exists()) return new TreeMap<>();
         return readObject(ADD_FILE, TreeMap.class);
     }
 
-    public static void saveAddStaged() {
+    private static void saveAddStaged(TreeMap<String,String> addStaged) {
         writeObject(ADD_FILE, addStaged);
+    }
+
+    private static TreeMap<String, String> getRmStaged() {
+        if (!ADD_FILE.exists()) return new TreeMap<>();
+        return readObject(RM_FILE, TreeMap.class);
+    }
+
+    private static void saveRmStaged(TreeMap<String,String> rmStaged) {
+        writeObject(RM_FILE, rmStaged);
+    }
+
+    private static String getHead() {
+        if (!HEAD_FILE.exists()) return null;
+        return readObject(HEAD_FILE, String.class);
     }
 
     private static Commit getCurrentCommit() {
