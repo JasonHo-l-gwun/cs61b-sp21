@@ -2,7 +2,6 @@ package gitlet;
 
 // TODO: any imports you need here
 
-import javax.xml.crypto.Data;
 import java.io.Serializable;
 import java.util.*;
 
@@ -30,7 +29,8 @@ public class Commit implements Serializable {
     /** THe hash of this Commit.*/
     private String uid;
     /** THe hash of this Commit's parent 1.*/
-    private final String parents;
+    private final String parent1;
+    private final String parent2;
     /** THe hash of this Commit's parent 2.*/
     // private final String parents2;
     /** THe blobs of this Commit.*/
@@ -38,18 +38,19 @@ public class Commit implements Serializable {
 
 
     /* TODO: fill in the rest of this class. */
-    Commit(String message, Date date, String parents, TreeMap<String,String> blobs) {
+    Commit(String message, Date date, String parent1, String parent2, TreeMap<String,String> blobs) {
         this.date = date;
         this.message = message;
         this.blobs = blobs;
-        this.parents = parents;
+        this.parent1 = parent1;
+        this.parent2 = parent2;
     }
 
     public void setUid() {
         List<byte[]> list = new ArrayList<>();
         list.add(Utils.serialize(message));
         list.add(Utils.serialize(date));
-        list.add(Utils.serialize(parents));
+        list.add(Utils.serialize(parent1));
         list.add(Utils.serialize(blobs));
         this.uid = Utils.sha1(list);
     }
@@ -59,6 +60,22 @@ public class Commit implements Serializable {
     }
 
     public TreeMap<String,String> getBlobs() {
+        if (this.blobs == null) return new TreeMap<>();
         return this.blobs;
+    }
+
+    public String getParent1() {
+        return this.parent1;
+    }
+
+    public String getParent2() {
+        return this.parent2;
+    }
+    public String getMessage() {
+        return this.message;
+    }
+
+    public Date getDate() {
+        return  this.date;
     }
 }

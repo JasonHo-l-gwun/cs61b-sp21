@@ -2,8 +2,7 @@ package gitlet;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Date;
-import java.util.TreeMap;
+import java.util.*;
 
 import static gitlet.Utils.*;
 
@@ -51,7 +50,7 @@ public class Repository {
         }
 
         GITLET_DIR.mkdir();
-        Commit initCommit = new Commit("initial commit", new Date(0), null, null);
+        Commit initCommit = new Commit("initial commit", new Date(0), null, null, null);
         initCommit.setUid();
         String commitHash = initCommit.getUid();
         COMMIT_DIR.mkdir();
@@ -77,10 +76,7 @@ public class Repository {
     }
 
     public static void add(String fileName) throws IOException {
-        if (!GITLET_DIR.exists()) {
-            System.out.println("Not in an initialized Gitlet directory.");
-            return;
-        }
+        hasGitletDir();
 
         File addFile = join(CWD, fileName);
         if (!addFile.exists()) {
@@ -102,8 +98,7 @@ public class Repository {
          * or there is no file in stage for addition have the same name to it
          * don't add it
          * */
-        boolean sameFileInCommit = currentCommit.getBlobs() != null
-                                        && currentCommit.getBlobs().containsKey(fileName)
+        boolean sameFileInCommit = currentCommit.getBlobs().containsKey(fileName)
                                             && currentCommit.getBlobs().get(fileName).equals(fileHash);
         if (sameFileInCommit && addStaged.containsKey(fileName)) {
             addStaged.remove(fileName);
@@ -136,18 +131,15 @@ public class Repository {
         }
     }
 
-    public static void commit(String massage) throws IOException {
-        if (!GITLET_DIR.exists()) {
-            System.out.println("Not in an initialized Gitlet directory.");
-            System.exit(0);
-        }
+    public static void commit(String message) throws IOException {
+        hasGitletDir();
         TreeMap<String,String> addStaged = getAddStaged();
         TreeMap<String,String> rmStaged = getRmStaged();
         if (addStaged.isEmpty() && rmStaged.isEmpty()) {
             System.out.println("No changes added to the commit.");
             System.exit(0);
         }
-        if (massage.isEmpty()) {
+        if (message.isEmpty()) {
             System.out.println("Please enter a commit message.");
             System.exit(0);
         }
@@ -171,12 +163,12 @@ public class Repository {
         }
         for (String fileName : rmStaged.keySet()) {
             String fileHash = rmStaged.get(fileName);
-            newBlobs.remove(fileName, fileHash);
+            newBlobs.remove(fileName);
             File file = join(RM_DIR, fileHash);
             Utils.restrictedDelete(file);
         }
         /** Create the new commit object*/
-        Commit newCommit = new Commit(massage, currentDate, head, newBlobs);
+        Commit newCommit = new Commit(message, currentDate, head, null, newBlobs);
         /** Write it to the file */
         newCommit.setUid();
         String commitHash = newCommit.getUid();
@@ -192,35 +184,135 @@ public class Repository {
         Utils.writeObject(RM_FILE, rmStaged);
     }
 
-    /** Helper function */
-    
+    public static void rm(String fileName) {
+        hasGitletDir();
+        TreeMap<String,String> addStaged = getAddStaged();
+        TreeMap<String,String> rmStaged = getRmStaged();
+        Commit currentCommit = getCurrentCommit();
+        TreeMap<String,String> trackedFiles = currentCommit.getBlobs();
+
+        boolean isStaged = addStaged.containsKey(fileName);
+        boolean isTrack = trackedFiles.containsKey(fileName);
+
+        if (!isTrack && !isStaged) {
+            System.out.println("No reason to remove the file.");
+            System.exit(0);
+        }
+        if (isStaged) {
+            addStaged.remove(fileName);
+            saveAddStaged(addStaged);
+        }
+        if (isTrack) {
+            rmStaged.put(fileName, trackedFiles.get(fileName));
+            saveRmStaged(rmStaged);
+            File fileInCWD = join(CWD, fileName);
+            if (fileInCWD.exists()) {
+                restrictedDelete(fileInCWD);
+            }
+        }
+    }
+
+    public static void log() {
+        Commit commit = getCurrentCommit();
+        while (commit != null) {
+            printLog(commit);
+            commit = getParentCommit(commit);
+        }
+    }
+
+    public static void globalLog() {
+        List<String> commitList = Utils.plainFilenamesIn(COMMIT_DIR);
+        for (int i = 0; i < commitList.size(); i++) {
+            Commit commit = getCommit(commitList.get(i));
+            printLog(commit);
+        }
+    }
+
+    public static void find(String message) {
+        List<String> commitList = Utils.plainFilenamesIn(COMMIT_DIR);
+        boolean isFound = false;
+        for (int i = 0; i < commitList.size(); i++) {
+            Commit commit = getCommit(commitList.get(i));
+            if (commit.getMessage().equals(message)) {
+                isFound = true;
+                System.out.println(commit.getUid());
+            }
+        }
+        if (!isFound) System.out.println("Found no commit with that message.");
+    }
+
+
+
+
+    /** ----------------------------------Helper function------------------------------- */
+    /** Judge if a .gitlet folder exists */
+    private static void hasGitletDir() {
+        if (!GITLET_DIR.exists()) {
+            System.out.println("Not in an initialized Gitlet directory.");
+            System.exit(0);
+        }
+    }
+    /** To get the staged for addition */
     private static TreeMap<String, String> getAddStaged() {
         if (!ADD_FILE.exists()) return new TreeMap<>();
-        return readObject(ADD_FILE, TreeMap.class);
+        return Utils.readObject(ADD_FILE, TreeMap.class);
     }
 
+    /** To save the staged for addition */
     private static void saveAddStaged(TreeMap<String,String> addStaged) {
-        writeObject(ADD_FILE, addStaged);
+        Utils.writeObject(ADD_FILE, addStaged);
     }
 
+    /** To get the staged for addition */
     private static TreeMap<String, String> getRmStaged() {
         if (!ADD_FILE.exists()) return new TreeMap<>();
-        return readObject(RM_FILE, TreeMap.class);
+        return Utils.readObject(RM_FILE, TreeMap.class);
     }
 
+    /** To save the staged for removal */
     private static void saveRmStaged(TreeMap<String,String> rmStaged) {
-        writeObject(RM_FILE, rmStaged);
+        Utils.writeObject(RM_FILE, rmStaged);
     }
 
+    /** To get the head pointer */
     private static String getHead() {
         if (!HEAD_FILE.exists()) return null;
-        return readObject(HEAD_FILE, String.class);
+        return Utils.readObject(HEAD_FILE, String.class);
     }
 
+    /** To get the head pointer current*/
     private static Commit getCurrentCommit() {
-        String currentCommitHash = Utils.readObject(HEAD_FILE, String.class);
-        File commitFile = Utils.join(COMMIT_DIR, currentCommitHash);
+        String currentCommitUid = Utils.readObject(HEAD_FILE, String.class);
+        return getCommit(currentCommitUid);
+    }
+
+    /** Pass in a Commit object and return a object which is its parent */
+    private static Commit getParentCommit(Commit commit) {
+        String parentCommitUid = commit.getParent1();
+        if (parentCommitUid == null) return null;
+        File parentCommitFile = Utils.join(COMMIT_DIR, parentCommitUid);
+        return Utils.readObject(parentCommitFile, Commit.class);
+    }
+
+    private static Commit getCommit(String commitUid) {
+        if (commitUid == null) return null;
+        File commitFile = Utils.join(COMMIT_DIR, commitUid);
         return Utils.readObject(commitFile, Commit.class);
+    }
+    /** Print the log for commit */
+    private static void printLog(Commit commit) {
+        System.out.print("===");
+        System.out.print("commit " + commit.getUid());
+        if (commit.getParent2() != null) {
+            System.out.println("Merge: " + commit.getParent1().substring(0,7) + commit.getParent2().substring(0,7));
+        }
+        Formatter formatter = new Formatter(Locale.US);
+        String dateStr = formatter.format(
+                "%1$ta %1$tb %1$td %1$tT %1$tY %1$tz",
+                commit.getDate()
+        ).toString();
+        System.out.print("Date: " + dateStr);
+        System.out.println(commit.getMessage());
     }
 }
 

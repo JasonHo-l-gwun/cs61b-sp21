@@ -36,14 +36,46 @@ public class Main {
                 }
                 Repository.add(args[1]);
                 break;
-            // TODO: FILL THE REST IN
+            // TODO: handle the `commit [message]` command
             case "commit":
                 if (args.length != 2) {
                     System.out.println("Incorrect operands.");
                     System.exit(0);
                 }
                 Repository.commit(args[1]);
-
+                break;
+            // TODO: handle the `rm [file name]` command
+            case "rm":
+                if (args.length != 2) {
+                    System.out.println("Incorrect operands.");
+                    System.exit(0);
+                }
+                Repository.rm(args[1]);
+                break;
+            // TODO: handle the `log` command
+            case "log":
+                if (args.length != 1) {
+                    System.out.println("Incorrect operands.");
+                    System.exit(0);
+                }
+                Repository.log();
+                break;
+            // TODO: handle the `global-log` command
+            case "global-log":
+                if (args.length != 1) {
+                    System.out.println("Incorrect operands.");
+                    System.exit(0);
+                }
+                Repository.globalLog();
+                break;
+            // TODO: handle the `find` command
+            case "find":
+                if (args.length != 2) {
+                    System.out.println("Incorrect operands.");
+                    System.exit(0);
+                }
+                Repository.find(args[1]);
+                break;
             default:
                 System.out.println("No command with that name exists.");
         }
