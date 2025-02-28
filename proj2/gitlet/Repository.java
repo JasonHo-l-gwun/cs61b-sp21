@@ -55,7 +55,7 @@ public class Repository {
         String commitHash = initCommit.getUid();
         COMMIT_DIR.mkdir();
         File currentCommitFile = join(COMMIT_DIR, commitHash);
-        currentCommitFile.createNewFile();
+        if (!currentCommitFile.exists()) currentCommitFile.createNewFile();
         writeObject(currentCommitFile, initCommit);
 
         /** Initial the directory and file */
@@ -101,7 +101,7 @@ public class Repository {
             addStaged.remove(fileName);
             Utils.writeObject(ADD_FILE, addStaged);
             File stagedFile = join(ADD_DIR, stagedHash);
-            Utils.restrictedDelete(stagedFile);
+            stagedFile.delete();
             return;
         } else if(sameFileInCommit) return;
         /** If the staged for addition has the same file to the addFile,
@@ -112,7 +112,7 @@ public class Repository {
             rmStaged.remove(fileName);
             Utils.writeObject(RM_FILE, rmStaged);
             File stagedFile = join(RM_DIR, stagedHash);
-            Utils.restrictedDelete(stagedFile);
+            stagedFile.delete();
         }
         addStaged.put(fileName, fileHash);
         Utils.writeObject(ADD_FILE, addStaged);
@@ -151,19 +151,19 @@ public class Repository {
             String fileHash = addStaged.get(fileName);
             newBlobs.put(fileName, fileHash);
             File file = join(ADD_DIR, fileHash);
-            Utils.restrictedDelete(file);
             File blob = join(BLOB_DIR, fileHash);
             if (!blob.exists()) {
                 blob.createNewFile();
                 byte[] fileContent = Utils.readContents(file);
                 Utils.writeContents(blob, fileContent);
             }
+            file.delete();
         }
         for (String fileName : rmStaged.keySet()) {
             String fileHash = rmStaged.get(fileName);
             newBlobs.remove(fileName);
             File file = join(RM_DIR, fileHash);
-            Utils.restrictedDelete(file);
+            file.delete();
         }
         /** Create the new commit object*/
         Commit newCommit = new Commit(message, currentDate, currentCommitUid, null, newBlobs);

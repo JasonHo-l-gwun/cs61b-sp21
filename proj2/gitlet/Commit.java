@@ -47,7 +47,7 @@ public class Commit implements Serializable {
     }
 
     public void setUid() {
-        List<byte[]> list = new ArrayList<>();
+        List<Object> list = new ArrayList<>();
         list.add(Utils.serialize(message));
         list.add(Utils.serialize(date));
         list.add(Utils.serialize(parent1));
