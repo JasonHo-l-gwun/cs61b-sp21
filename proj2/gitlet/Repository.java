@@ -45,7 +45,7 @@ public class Repository {
     /** The current branch file to store the current branch data */
     public static final File CURRENT_BRANCH_FILE = join(GITLET_DIR, "currentBranch");
 
-    public static void init() throws IOException {
+    public static void init() {
         if (GITLET_DIR.exists()) {
             System.out.println("A Gitlet version-control system already exists in the current directory.");
             System.exit(0);
@@ -57,7 +57,6 @@ public class Repository {
         String commitHash = initCommit.getUid();
         COMMIT_DIR.mkdir();
         File currentCommitFile = join(COMMIT_DIR, commitHash);
-        if (!currentCommitFile.exists()) currentCommitFile.createNewFile();
         writeObject(currentCommitFile, initCommit);
 
         /** Initial the directory and file */
@@ -74,7 +73,7 @@ public class Repository {
         Utils.writeObject(CURRENT_BRANCH_FILE, "master");
     }
 
-    public static void add(String fileName) throws IOException {
+    public static void add(String fileName) {
         hasGitletDir();
         File addFile = join(CWD, fileName);
         if (!addFile.exists()) {
@@ -125,13 +124,12 @@ public class Repository {
          * */
         File addedFile = join(ADD_DIR, fileHash);
         if (!addedFile.exists()) {
-            addedFile.createNewFile();
             byte[] fileContent = Utils.readContents(addFile);
             Utils.writeContents(addedFile, fileContent);
         }
     }
 
-    public static void commit(String message) throws IOException {
+    public static void commit(String message) {
         hasGitletDir();
         TreeMap<String,String> addStaged = getAddStaged();
         TreeMap<String,String> rmStaged = getRmStaged();
@@ -155,7 +153,6 @@ public class Repository {
             File file = join(ADD_DIR, fileHash);
             File blob = join(BLOB_DIR, fileHash);
             if (!blob.exists()) {
-                blob.createNewFile();
                 byte[] fileContent = Utils.readContents(file);
                 Utils.writeContents(blob, fileContent);
             }
