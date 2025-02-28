@@ -1,7 +1,6 @@
 package gitlet;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
 
 import static gitlet.Utils.*;
@@ -63,14 +62,12 @@ public class Repository {
         BLOB_DIR.mkdir();
         ADD_DIR.mkdir();
         RM_DIR.mkdir();
-        TreeMap<String,String> addStaged = new TreeMap<>();
-        Utils.writeObject(ADD_FILE, addStaged);
-        TreeMap<String,String> rmStaged = new TreeMap<>();
-        Utils.writeObject(RM_FILE, rmStaged);
+        saveAddStaged(new TreeMap<>());
+        saveRmStaged(new TreeMap<>());
         TreeMap<String,String> branches = new TreeMap<>();
         branches.put("master", commitHash);
-        Utils.writeObject(BRANCHES_FILE, branches);
-        Utils.writeObject(CURRENT_BRANCH_FILE, "master");
+        saveBranches(branches);
+        setCurrentBranch("master");
     }
 
     public static void add(String fileName) {
@@ -83,8 +80,7 @@ public class Repository {
 
         TreeMap<String,String> addStaged = getAddStaged();
         TreeMap<String,String> rmStaged = getRmStaged();
-        byte[] fileByte = readContents(addFile);
-        String fileHash = Utils.sha1(fileByte);
+        String fileHash = getFileHash(addFile);
         /** If the staged for addition has the file is same to the add file,don't add it */
         boolean sameFileInStage = addStaged.containsKey(fileName) && addStaged.get(fileName).equals(fileHash);
         if (sameFileInStage) return;
@@ -95,12 +91,12 @@ public class Repository {
          * or there is no file in stage for addition have the same name to it
          * don't add it
          * */
-        boolean sameFileInCommit = currentCommit.getBlobs().containsKey(fileName)
-                                            && currentCommit.getBlobs().get(fileName).equals(fileHash);
+        boolean sameFileInCommit = getCurrentCommitBlobs().containsKey(fileName)
+                                            && getCurrentCommitBlobs().get(fileName).equals(fileHash);
         if (sameFileInCommit && addStaged.containsKey(fileName)) {
             String stagedHash = addStaged.get(fileName);
             addStaged.remove(fileName);
-            Utils.writeObject(ADD_FILE, addStaged);
+            saveAddStaged(addStaged);
             File stagedFile = join(ADD_DIR, stagedHash);
             stagedFile.delete();
             return;
@@ -111,12 +107,12 @@ public class Repository {
         if (rmStaged.containsKey(fileName)) {
             String stagedHash = addStaged.get(fileName);
             rmStaged.remove(fileName);
-            Utils.writeObject(RM_FILE, rmStaged);
+            saveRmStaged(rmStaged);
             File stagedFile = join(RM_DIR, stagedHash);
             stagedFile.delete();
         }
         addStaged.put(fileName, fileHash);
-        Utils.writeObject(ADD_FILE, addStaged);
+        saveAddStaged(addStaged);
         /** If there is not a same content file in staged for addition
          * created a new file,
          * otherwise the same content file will use the same hash file
@@ -124,8 +120,7 @@ public class Repository {
          * */
         File addedFile = join(ADD_DIR, fileHash);
         if (!addedFile.exists()) {
-            byte[] fileContent = Utils.readContents(addFile);
-            Utils.writeContents(addedFile, fileContent);
+            writeToFile(addFile, addedFile);
         }
     }
 
@@ -143,9 +138,8 @@ public class Repository {
         }
         Date currentDate = new Date();
         /** Create a new map to store the new blobs for the new commit */
-        Commit currentCommit = getCurrentCommit();
-        String currentCommitUid = currentCommit.getUid();
-        TreeMap<String,String> newBlobs = new TreeMap<>(currentCommit.getBlobs());
+        String currentCommitUid = getCurrentCommitUid();
+        TreeMap<String,String> newBlobs = new TreeMap<>(getCurrentCommitBlobs());
         /** Update the map according to the stage area */
         for (String fileName : addStaged.keySet()) {
             String fileHash = addStaged.get(fileName);
@@ -153,8 +147,7 @@ public class Repository {
             File file = join(ADD_DIR, fileHash);
             File blob = join(BLOB_DIR, fileHash);
             if (!blob.exists()) {
-                byte[] fileContent = Utils.readContents(file);
-                Utils.writeContents(blob, fileContent);
+                writeToFile(file, blob);
             }
             file.delete();
         }
@@ -168,28 +161,23 @@ public class Repository {
         Commit newCommit = new Commit(message, currentDate, currentCommitUid, null, newBlobs);
         /** Write it to the file */
         newCommit.setUid();
-        String commitHash = newCommit.getUid();
-        File newCommitFile = join(COMMIT_DIR, commitHash);
-        Utils.writeObject(newCommitFile, newCommit);
+        saveCommit(newCommit);
         /** Update the branches */
         String currentBranchName = getCurrentBranchName();
-        String head = commitHash;
         TreeMap<String,String> branches = getBranches();
-        branches.put(currentBranchName,head);
-        Utils.writeObject(BRANCHES_FILE, branches);
+        String commitHash = newCommit.getUid();
+        branches.put(currentBranchName, commitHash);
+        saveBranches(branches);
         /** Update the stage area */
-        addStaged.clear();
-        Utils.writeObject(ADD_FILE, addStaged);
-        rmStaged.clear();
-        Utils.writeObject(RM_FILE, rmStaged);
+        saveAddStaged(new TreeMap<String,String>());
+        saveRmStaged(new TreeMap<String,String>());
     }
 
     public static void rm(String fileName) {
         hasGitletDir();
         TreeMap<String,String> addStaged = getAddStaged();
         TreeMap<String,String> rmStaged = getRmStaged();
-        Commit currentCommit = getCurrentCommit();
-        TreeMap<String,String> trackedFiles = currentCommit.getBlobs();
+        TreeMap<String,String> trackedFiles = getCurrentCommitBlobs();
 
         boolean isStaged = addStaged.containsKey(fileName);
         boolean isTrack = trackedFiles.containsKey(fileName);
@@ -223,7 +211,7 @@ public class Repository {
 
     public static void globalLog() {
         hasGitletDir();
-        List<String> commitList = Utils.plainFilenamesIn(COMMIT_DIR);
+        List<String> commitList = getCommitList();
         for (int i = 0; i < commitList.size(); i++) {
             Commit commit = getCommit(commitList.get(i));
             printLog(commit);
@@ -231,7 +219,8 @@ public class Repository {
     }
 
     public static void find(String message) {
-        List<String> commitList = Utils.plainFilenamesIn(COMMIT_DIR);
+        hasGitletDir();
+        List<String> commitList = getCommitList();
         boolean isFound = false;
         for (int i = 0; i < commitList.size(); i++) {
             Commit commit = getCommit(commitList.get(i));
@@ -243,8 +232,151 @@ public class Repository {
         if (!isFound) System.out.println("Found no commit with that message.");
     }
 
+    public static void status() {
+        hasGitletDir();
+        TreeMap<String,String> branches = getBranches();
+        String currentBranch = getCurrentBranchName();
+        TreeMap<String,String> stagedFile = getAddStaged();
+        TreeMap<String,String> rmFile = getRmStaged();
+        TreeMap<String,String> trackedFile = getCurrentCommitBlobs();
+        System.out.println("=== Branches ===");
+        for (String branch : branches.keySet()) {
+            if (branch.equals(currentBranch)) System.out.print("*");
+            System.out.println(branch);
+        }
+        System.out.println();
+        System.out.println("=== Staged Files ===");
+        for (String fileName : stagedFile.keySet()) {
+            System.out.println(fileName);
+        }
+        System.out.println();
+        System.out.println("=== Removed Files ===");
+        for (String fileName : rmFile.keySet()) {
+            System.out.println(fileName);
+        }
+        System.out.println();
+        List<String> WorkspaceFiles = getWorkspaceFiles();
+        System.out.println("=== Modifications Not Staged For Commit ===");
+        for (String fileName : WorkspaceFiles) {
+            File file = Utils.join(CWD, fileName);
+            boolean isTracked = trackedFile.containsKey(fileName);
+            boolean isAdded = stagedFile.containsKey(fileName);
+            String fileHash = getFileHash(file);
+            boolean isModified = (isTracked && !fileHash.equals(trackedFile.get(fileName)))
+                                    || (isAdded && !fileHash.equals(stagedFile.get(fileName)));
+            if (isModified) {
+                System.out.println(fileName + " (modified)");
+            }
+        }
+        for (String fileName : stagedFile.keySet()) {
+            if (!WorkspaceFiles.contains(fileName)) System.out.println(fileName + "deleted)");
+        }
+        for (String fileName : trackedFile.keySet()) {
+            if (!WorkspaceFiles.contains(fileName) && !rmFile.containsKey(fileName))
+                System.out.println(fileName + " (deleted)");
+        }
 
+        System.out.println();
+        System.out.println("=== Untracked Files ===");
+        for (String fileName : WorkspaceFiles) {
+            if (!stagedFile.containsKey(fileName) && !trackedFile.containsKey(fileName))
+                System.out.println(fileName);
+        }
+        System.out.println();
+    }
 
+    public static void checkout1(String fileName) {
+        TreeMap<String,String> currentCommitBlobs = getCurrentCommitBlobs();
+        if (!currentCommitBlobs.containsKey(fileName)) {
+            System.out.println("File does not exist in that commit.");
+            System.exit(0);
+        }
+        String readFileHash = currentCommitBlobs.get(fileName);
+        File readFile = Utils.join(BLOB_DIR, readFileHash);
+        File writeFile = Utils.join(CWD, fileName);
+        writeToFile(readFile, writeFile);
+    }
+
+    public static void checkout2(String uid, String fileName) {
+        Commit commit = getCommit(uid);
+        if (commit == null) {
+            System.out.println("File does not exist in that commit.");
+            System.exit(0);
+        }
+        TreeMap<String,String> commitFiles = commit.getBlobs();
+        if (!commitFiles.containsKey(fileName)) {
+            System.out.println("File does not exist in that commit.");
+            System.exit(0);
+        }
+        String readFileHash = commitFiles.get(fileName);
+        File readFile = Utils.join(BLOB_DIR, readFileHash);
+        File writeFile = Utils.join(CWD, fileName);
+        writeToFile(readFile, writeFile);
+    }
+
+    public static void checkout3(String branchName) {
+        TreeMap<String,String> branches = getBranches();
+        String currentBranch = getCurrentBranchName();
+        if (!branches.containsKey(branchName)) {
+            System.out.println("No such branch exists.");
+            System.exit(0);
+        }
+        if (branchName.equals(currentBranch)) {
+            System.out.println("No need to checkout the current branch.");
+            System.exit(0);
+        }
+
+        List<String> unTrackedFiles = new ArrayList<>();
+        List<String> WorkspaceFiles = getWorkspaceFiles();
+        TreeMap<String,String> currentCommitBlobs = getCurrentCommitBlobs();
+        for (String fileName : WorkspaceFiles) {
+            if (!currentCommitBlobs.containsKey(fileName)) unTrackedFiles.add(fileName);
+        }
+        String uid = branches.get(branchName);
+        Commit targetCommit = getCommit(uid);
+        TreeMap<String,String> targetBlobs = targetCommit.getBlobs();
+        for (String fileName : unTrackedFiles) {
+            if (targetBlobs.containsKey(fileName)) {
+                System.out.println("There is an untracked file in the way; delete it, or add and commit it first.");
+                System.exit(0);
+            }
+        }
+        for (String fileName : WorkspaceFiles) {
+            Utils.restrictedDelete(fileName);
+        }
+        for (String fileName : targetBlobs.keySet()) {
+            File readFile = Utils.join(BLOB_DIR, targetBlobs.get(fileName));
+            File writeFile = Utils.join(CWD, fileName);
+            writeToFile(readFile,writeFile);
+        }
+        setCurrentBranch(branchName);
+        saveAddStaged(new TreeMap<String,String>());
+        saveRmStaged(new TreeMap<String,String>());
+    }
+
+    public static void branch(String branchName) {
+        TreeMap<String,String> branches = getBranches();
+        if (branches.containsKey(branchName)) {
+            System.out.println("A branch with that name already exists.");
+            System.exit(0);
+        }
+        branches.put(branchName,getCurrentCommitUid());
+        saveBranches(branches);
+    }
+
+    public static void rmBranch(String branchName) {
+        if (branchName.equals(getCurrentBranchName())) {
+            System.out.println("Cannot remove the current branch.");
+            System.exit(0);
+        }
+        TreeMap<String,String> branches = getBranches();
+        if (branches.containsKey(branchName)) {
+            System.out.println("A branch with that name already exists.");
+            System.exit(0);
+        }
+        branches.remove(branchName);
+        saveBranches(branches);
+    }
 
     /** ----------------------------------Helper function------------------------------- */
     /** Judge if a .gitlet folder exists */
@@ -307,6 +439,12 @@ public class Repository {
         File commitFile = Utils.join(COMMIT_DIR, commitUid);
         return Utils.readObject(commitFile, Commit.class);
     }
+    /** To save a new commit to the target file */
+    private static void saveCommit(Commit newCommit) {
+        String commitHash = newCommit.getUid();
+        File newCommitFile = join(COMMIT_DIR, commitHash);
+        Utils.writeObject(newCommitFile, newCommit);
+    }
     /** Print the log for commit */
     private static void printLog(Commit commit) {
         System.out.println("===");
@@ -324,6 +462,42 @@ public class Repository {
         System.out.println("Date: " + dateStr);
         System.out.println(commit.getMessage());
         System.out.println();
+    }
+    /** To get the Workspace Files */
+    private static List<String> getWorkspaceFiles() {
+        return plainFilenamesIn(CWD);
+    }
+    /** To get a file's hash */
+    private static String getFileHash(File file) {
+        return sha1(Utils.readContents(file));
+
+    }
+    /** To write read file contents to write file */
+    private static void writeToFile(File readFile, File writeFIle) {
+        byte[] fileContent = Utils.readContents(readFile);
+        Utils.writeContents(writeFIle, fileContent);
+    }
+    /** To get the commit file as a list */
+    private static List<String> getCommitList() {
+        return Utils.plainFilenamesIn(COMMIT_DIR);
+    }
+    /** Set current branch */
+    private static void setCurrentBranch(String branch) {
+        writeContents(CURRENT_BRANCH_FILE, branch);
+    }
+    /** Save the branches */
+    private static void saveBranches(TreeMap<String,String> branches) {
+        Utils.writeObject(BRANCHES_FILE, branches);
+    }
+    /** Get the current commit's blobs */
+    private static TreeMap<String, String> getCurrentCommitBlobs() {
+        Commit currentCommit = getCurrentCommit();
+        return currentCommit.getBlobs();
+    }
+    /** Get the current commit's uid */
+    private static String getCurrentCommitUid() {
+        Commit currentCommit = getCurrentCommit();
+        return currentCommit.getUid();
     }
 }
 

@@ -3,19 +3,19 @@ I definitions.inc
 > init
 <<<
 + wug.txt wug.txt
-+ wig.txt wig.txt
++ wug2.txt wu2g.txt
 > add wug.txt
 <<<
-> add wig.txt
+> add wug2.txt
 <<<
 > rm wug.txt
 <<<
-> commit "added wug,wig and rm wug"
+> commit "added wug,wug2 and rm wug"
 <<<
 > log
 ===
 ${COMMIT_HEAD}
-added wug,wig and rm wug
+added wug,wug2 and rm wug
 
 ===
 ${COMMIT_HEAD}
