@@ -32,15 +32,17 @@ public class Repository {
     public static final File COMMIT_DIR = join(GITLET_DIR, "commits");
     /** The blobs directory */
     public static final File BLOB_DIR = join(GITLET_DIR, "blobs");
-    /** The staged for addition directory */
+    /** The staged for addition directory store the staged for removal data and every file for removal */
     public static final File ADD_DIR = join(GITLET_DIR, "add");
     /** The add staged File to store the staged for addition data */
     public static final File ADD_FILE = join(ADD_DIR, "addStaged");
-    /** The staged for removal directory */
+    /** The staged for removal directory store the staged for removal data and every file for removal */
     public static final File RM_DIR = join(GITLET_DIR, "rm");
     /** The remove staged File to store the staged for addition data */
     public static final File RM_FILE = join(RM_DIR, "addStaged");
+    /** The branch file to store every branch's data */
     public static final File BRANCHES_FILE = join(GITLET_DIR, "branches");
+    /** The current branch file to store the current branch data */
     public static final File CURRENT_BRANCH_FILE = join(GITLET_DIR, "currentBranch");
 
     public static void init() throws IOException {
