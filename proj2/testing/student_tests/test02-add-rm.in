@@ -3,7 +3,7 @@ I definitions.inc
 > init
 <<<
 + wug.txt wug.txt
-+ wug2.txt wu2g.txt
++ wug2.txt wug2.txt
 > add wug.txt
 <<<
 > add wug2.txt

@@ -303,12 +303,12 @@ public class Repository {
             System.out.println("File does not exist in that commit.");
             System.exit(0);
         }
-        TreeMap<String,String> commitFiles = commit.getBlobs();
-        if (!commitFiles.containsKey(fileName)) {
+        TreeMap<String,String> commitBlobs = commit.getBlobs();
+        if (!commitBlobs.containsKey(fileName)) {
             System.out.println("File does not exist in that commit.");
             System.exit(0);
         }
-        String readFileHash = commitFiles.get(fileName);
+        String readFileHash = commitBlobs.get(fileName);
         File readFile = Utils.join(BLOB_DIR, readFileHash);
         File writeFile = Utils.join(CWD, fileName);
         writeToFile(readFile, writeFile);
@@ -325,30 +325,8 @@ public class Repository {
             System.out.println("No need to checkout the current branch.");
             System.exit(0);
         }
-
-        List<String> unTrackedFiles = new ArrayList<>();
-        List<String> WorkspaceFiles = getWorkspaceFiles();
-        TreeMap<String,String> currentCommitBlobs = getCurrentCommitBlobs();
-        for (String fileName : WorkspaceFiles) {
-            if (!currentCommitBlobs.containsKey(fileName)) unTrackedFiles.add(fileName);
-        }
         String uid = branches.get(branchName);
-        Commit targetCommit = getCommit(uid);
-        TreeMap<String,String> targetBlobs = targetCommit.getBlobs();
-        for (String fileName : unTrackedFiles) {
-            if (targetBlobs.containsKey(fileName)) {
-                System.out.println("There is an untracked file in the way; delete it, or add and commit it first.");
-                System.exit(0);
-            }
-        }
-        for (String fileName : WorkspaceFiles) {
-            Utils.restrictedDelete(fileName);
-        }
-        for (String fileName : targetBlobs.keySet()) {
-            File readFile = Utils.join(BLOB_DIR, targetBlobs.get(fileName));
-            File writeFile = Utils.join(CWD, fileName);
-            writeToFile(readFile,writeFile);
-        }
+        rollBack(uid);
         setCurrentBranch(branchName);
         saveAddStaged(new TreeMap<String,String>());
         saveRmStaged(new TreeMap<String,String>());
@@ -378,6 +356,17 @@ public class Repository {
         saveBranches(branches);
     }
 
+    public static void reset(String uid) {
+        Commit commit = getCommit(uid);
+        if (commit == null) {
+            System.out.println("File does not exist in that commit.");
+            System.exit(0);
+        }
+        rollBack(uid);
+        TreeMap<String,String> branches = getBranches();
+        branches.put(getCurrentBranchName(), uid);
+        saveBranches(branches);
+    }
     /** ----------------------------------Helper function------------------------------- */
     /** Judge if a .gitlet folder exists */
     private static void hasGitletDir() {
@@ -419,9 +408,9 @@ public class Repository {
     }
     /** To get the head pointer current*/
     private static Commit getCurrentCommit() {
-        String currrentBranch = getCurrentBranchName();
+        String currentBranch = getCurrentBranchName();
         TreeMap<String,String> branches = Utils.readObject(BRANCHES_FILE, TreeMap.class);
-        String currentCommitUid = branches.get(currrentBranch);
+        String currentCommitUid = branches.get(currentBranch);
         return getCommit(currentCommitUid);
     }
 
@@ -483,7 +472,7 @@ public class Repository {
     }
     /** Set current branch */
     private static void setCurrentBranch(String branch) {
-        writeContents(CURRENT_BRANCH_FILE, branch);
+        Utils.writeObject(CURRENT_BRANCH_FILE, branch);
     }
     /** Save the branches */
     private static void saveBranches(TreeMap<String,String> branches) {
@@ -498,6 +487,33 @@ public class Repository {
     private static String getCurrentCommitUid() {
         Commit currentCommit = getCurrentCommit();
         return currentCommit.getUid();
+    }
+    /** Roll back to the specified commit */
+    private static void rollBack(String uid) {
+        List<String> unTrackedFiles = new ArrayList<>();
+        List<String> WorkspaceFiles = getWorkspaceFiles();
+        TreeMap<String,String> currentCommitBlobs = getCurrentCommitBlobs();
+        for (String fileName : WorkspaceFiles) {
+            if (!currentCommitBlobs.containsKey(fileName)) unTrackedFiles.add(fileName);
+        }
+
+        Commit targetCommit = getCommit(uid);
+        TreeMap<String,String> targetBlobs = targetCommit.getBlobs();
+        for (String fileName : unTrackedFiles) {
+            if (targetBlobs.containsKey(fileName)) {
+                System.out.println("There is an untracked file in the way; delete it, or add and commit it first.");
+                System.exit(0);
+            }
+        }
+        for (String fileName : WorkspaceFiles) {
+            Utils.restrictedDelete(fileName);
+        }
+        for (String fileName : targetBlobs.keySet()) {
+            File readFile = Utils.join(BLOB_DIR, targetBlobs.get(fileName));
+            File writeFile = Utils.join(CWD, fileName);
+            writeToFile(readFile,writeFile);
+        }
+
     }
 }
 
