@@ -123,6 +123,41 @@ public class Main {
                 }
                 Repository.merge(args[1]);
                 break;
+            case "add-remote":
+                if (args.length != 3) {
+                    System.out.println("Incorrect operands.");
+                    System.exit(0);
+                }
+                Repository.addRemote(args[1], args[2]);
+                break;
+            case "rm-remote":
+                if (args.length != 2) {
+                    System.out.println("Incorrect operands.");
+                    System.exit(0);
+                }
+                Repository.rmRemote(args[1]);
+                break;
+            case "push":
+                if (args.length != 3) {
+                    System.out.println("Incorrect operands.");
+                    System.exit(0);
+                }
+                Repository.push(args[1], args[2]);
+                break;
+            case "fetch":
+                if (args.length != 3) {
+                    System.out.println("Incorrect operands.");
+                    System.exit(0);
+                }
+                Repository.fetch(args[1], args[2]);
+                break;
+            case "pull":
+                if (args.length != 3) {
+                    System.out.println("Incorrect operands.");
+                    System.exit(0);
+                }
+                Repository.pull(args[1], args[2]);
+                break;
             default:
                 System.out.println("No command with that name exists.");
         }

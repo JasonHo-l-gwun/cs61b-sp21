@@ -38,6 +38,8 @@ public class Repository {
     public static final File BRANCHES_FILE = join(GITLET_DIR, "branches");
     /** The current branch file to store the current branch data */
     public static final File CURRENT_BRANCH_FILE = join(GITLET_DIR, "currentBranch");
+    /** The file to store the remote information */
+    public static final File REMOTE_FILE = join(GITLET_DIR, "remote");
 
     public static void init() {
         if (GITLET_DIR.exists()) {
@@ -410,6 +412,94 @@ public class Repository {
         if (conflict) {
             System.out.println("Encountered a merge conflict.");
         }
+    }
+
+    public static void addRemote(String remoteName, String remoteFile) {
+        remoteFile = remoteFile.replace("/", File.separator);
+        TreeMap<String, String> remote = getRemote();
+        if (remote.containsKey(remoteName)) {
+            System.out.println("A remote with that name already exists.");
+            System.exit(0);
+        }
+        remote.put(remoteName, remoteFile);
+        saveRemote(remote);
+    }
+
+    public static void rmRemote(String remoteName) {
+        TreeMap<String, String> remote = getRemote();
+        if (!remote.containsKey(remoteName)) {
+            System.out.println("A remote with that name does not exist.");
+            System.exit(0);
+        }
+        remote.remove(remoteName);
+        saveRemote(remote);
+    }
+
+    public static void push(String remoteName, String remoteBranchName) {
+        TreeMap<String, String> remote = getRemote();
+        if (!remote.containsKey(remoteName)) {
+            System.out.println("That remote does not have that branch.");
+            System.exit(0);
+        }
+        String remoteDir = remote.get(remoteName);
+        File remoteGitletDir = new File(remoteDir);
+        if (!remoteGitletDir.exists()) {
+            System.out.println("Remote directory not found.");
+            System.exit(0);
+        }
+        TreeMap<String, String> remoteBranches = getRemoteBranches(remoteGitletDir);
+        String localHead = getCurrentCommitUid();
+        String remoteHead = remoteBranches.get(remoteBranchName);
+        if (remoteHead == null) {
+            copyLocalToRemote(localHead, remoteDir);
+            remoteBranches.put(remoteBranchName, localHead);
+            saveRemoteBranches(remoteGitletDir, remoteBranches);
+            return;
+        }
+
+        Set<String> localAncestors = new HashSet<>();
+        gatherAncestors(localHead, localAncestors);
+        if (!localAncestors.contains(remoteHead)) {
+            System.out.println("Please pull down remote changes before pushing.");
+            System.exit(0);
+        }
+
+        copyLocalToRemote(localHead, remoteDir);
+        remoteBranches.put(remoteBranchName, localHead);
+        saveRemoteBranches(remoteGitletDir, remoteBranches);
+    }
+
+    public static void fetch(String remoteName, String remoteBranchName) {
+        TreeMap<String, String> remote = getRemote();
+        if (!remote.containsKey(remoteName)) {
+            System.out.println("That remote does not have that branch.");
+            System.exit(0);
+        }
+        String remoteDir = remote.get(remoteName);
+        File remoteGitletDir = new File(remoteDir);
+        if (!remoteGitletDir.exists()) {
+            System.out.println("Remote directory not found.");
+            System.exit(0);
+        }
+        TreeMap<String, String> localBranches = getBranches();
+        String localHead = localBranches.get(remoteName + File.separator + remoteBranchName);
+        String remoteHead = getRemoteBranches(remoteGitletDir).get(remoteBranchName);
+        if (localHead == null) {
+            copyRemoteToLocal(remoteHead, remoteDir);
+            localBranches.put(remoteName + File.separator + remoteBranchName, remoteHead);
+            saveBranches(localBranches);
+            return;
+        }
+
+        copyRemoteToLocal(remoteHead, remoteDir);
+        localBranches.put(remoteBranchName, remoteHead);
+        saveBranches(localBranches);
+    }
+
+    public static void pull(String remoteName, String remoteBranchName) {
+        fetch(remoteName, remoteBranchName);
+        String localRemoteBranchName = remoteName + File.separator + remoteBranchName;
+        merge(localRemoteBranchName);
     }
 
     /** ----------------------------------Helper function------------------------------- */
@@ -793,5 +883,91 @@ public class Repository {
             System.exit(0);
         }
         return matches.get(0);
+    }
+    /** Get the remote information */
+    private static TreeMap<String, String> getRemote() {
+        if (!REMOTE_FILE.exists()) {
+            return new TreeMap<String, String>();
+        }
+        return readObject(REMOTE_FILE, TreeMap.class);
+    }
+    /** Save the remote information */
+    private static void saveRemote(TreeMap<String,String> remote) {
+        Utils.writeObject(REMOTE_FILE, remote);
+    }
+    /** Get remote branches */
+    private static TreeMap<String,String> getRemoteBranches(File remoteDir) {
+        File remoteBranchesFile = join(remoteDir, "branches");
+        TreeMap<String, String> remoteBranches;
+        if (remoteBranchesFile.exists()) {
+            remoteBranches = Utils.readObject(remoteBranchesFile, TreeMap.class);
+        } else {
+            remoteBranches = new TreeMap<>();
+        }
+        return remoteBranches;
+    }
+    /** Copy the local branch to remote */
+    private static void copyLocalToRemote(String localHead, String remoteDir) {
+        File remoteCommitDir = join(remoteDir, "commits");
+        File remoteBlobDir = join(remoteDir, "blobs");
+        if (!remoteCommitDir.exists()) {
+            remoteCommitDir.mkdir();
+        }
+        if (!remoteBlobDir.exists()) {
+            remoteBlobDir.mkdir();
+        }
+
+        Set<String> localAncestors = new HashSet<>();
+        gatherAncestors(localHead, localAncestors);
+        for (String commitId : localAncestors) {
+            File localCommitFile = join(COMMIT_DIR, commitId);
+            File remoteCommitFile = join(remoteCommitDir, commitId);
+            if (!remoteCommitFile.exists()) {
+                Commit commit = Utils.readObject(localCommitFile, Commit.class);
+                Utils.writeObject(remoteCommitFile, commit);
+            }
+        }
+
+        List<String> localBlobs = Utils.plainFilenamesIn(BLOB_DIR);
+        for (String blobId : localBlobs) {
+            File localBlobFile = join(BLOB_DIR, blobId);
+            File remoteBlobFile = join(remoteBlobDir, blobId);
+            if (!remoteBlobFile.exists()) {
+                byte[] content = Utils.readContents(localBlobFile);
+                Utils.writeContents(remoteBlobFile, content);
+            }
+        }
+    }
+    /** Copy remote to local */
+    private static void copyRemoteToLocal(String remoteHead, String remoteDir) {
+        File remoteCommitDir = join(remoteDir, "commits");
+        File remoteBlobDir = join(remoteDir, "blobs");
+
+        Set<String> remoteAncestors = new HashSet<>();
+        gatherAncestors(remoteHead, remoteAncestors);
+        for (String commitId : remoteAncestors) {
+            File localCommitFile = join(COMMIT_DIR, commitId);
+            File remoteCommitFile = join(remoteCommitDir, commitId);
+            if (!localCommitFile.exists()) {
+                Commit commit = Utils.readObject(remoteCommitFile, Commit.class);
+                Utils.writeObject(localCommitFile, commit);
+            }
+        }
+
+        List<String> remoteBlobs = Utils.plainFilenamesIn(remoteBlobDir);
+        for (String blobId : remoteBlobs) {
+            File localBlobFile = join(BLOB_DIR, blobId);
+            File remoteBlobFile = join(remoteBlobDir, blobId);
+            if (!localBlobFile.exists()) {
+                byte[] content = Utils.readContents(remoteBlobFile);
+                Utils.writeContents(localBlobFile, content);
+            }
+        }
+    }
+
+    /** Save remote branches */
+    private static void saveRemoteBranches(File remoteDir ,TreeMap<String, String> remoteBranches) {
+        File remoteBranchesFile = join(remoteDir, "branches");
+        Utils.writeObject(remoteBranchesFile, remoteBranches);
     }
 }
