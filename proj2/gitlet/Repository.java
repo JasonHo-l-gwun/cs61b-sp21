@@ -437,10 +437,6 @@ public class Repository {
 
     public static void push(String remoteName, String remoteBranchName) {
         TreeMap<String, String> remote = getRemote();
-        if (!remote.containsKey(remoteName)) {
-            System.out.println("That remote does not have that branch.");
-            System.exit(0);
-        }
         String remoteDir = remote.get(remoteName);
         File remoteGitletDir = new File(remoteDir);
         if (!remoteGitletDir.exists()) {
@@ -450,12 +446,6 @@ public class Repository {
         TreeMap<String, String> remoteBranches = getRemoteBranches(remoteGitletDir);
         String localHead = getCurrentCommitUid();
         String remoteHead = remoteBranches.get(remoteBranchName);
-        if (remoteHead == null) {
-            copyLocalToRemote(localHead, remoteDir);
-            remoteBranches.put(remoteBranchName, localHead);
-            saveRemoteBranches(remoteGitletDir, remoteBranches);
-            return;
-        }
 
         Set<String> localAncestors = new HashSet<>();
         gatherAncestors(localHead, localAncestors);
@@ -471,28 +461,22 @@ public class Repository {
 
     public static void fetch(String remoteName, String remoteBranchName) {
         TreeMap<String, String> remote = getRemote();
-        if (!remote.containsKey(remoteName)) {
-            System.out.println("That remote does not have that branch.");
-            System.exit(0);
-        }
         String remoteDir = remote.get(remoteName);
         File remoteGitletDir = new File(remoteDir);
         if (!remoteGitletDir.exists()) {
             System.out.println("Remote directory not found.");
             System.exit(0);
         }
-        TreeMap<String, String> localBranches = getBranches();
-        String localHead = localBranches.get(remoteName + File.separator + remoteBranchName);
-        String remoteHead = getRemoteBranches(remoteGitletDir).get(remoteBranchName);
-        if (localHead == null) {
-            copyRemoteToLocal(remoteHead, remoteDir);
-            localBranches.put(remoteName + File.separator + remoteBranchName, remoteHead);
-            saveBranches(localBranches);
-            return;
+        TreeMap<String, String> remoteBranches = getRemoteBranches(remoteGitletDir);
+        if (remoteBranches.containsKey(remoteBranchName)) {
+            System.out.println("That remote does not have that branch.");
+            System.exit(0);
         }
+        TreeMap<String, String> localBranches = getBranches();
+        String remoteHead = remoteBranches.get(remoteBranchName);
 
         copyRemoteToLocal(remoteHead, remoteDir);
-        localBranches.put(remoteBranchName, remoteHead);
+        localBranches.put(remoteName + File.separator + remoteBranchName, remoteHead);
         saveBranches(localBranches);
     }
 
@@ -892,11 +876,11 @@ public class Repository {
         return readObject(REMOTE_FILE, TreeMap.class);
     }
     /** Save the remote information */
-    private static void saveRemote(TreeMap<String,String> remote) {
+    private static void saveRemote(TreeMap<String, String> remote) {
         Utils.writeObject(REMOTE_FILE, remote);
     }
     /** Get remote branches */
-    private static TreeMap<String,String> getRemoteBranches(File remoteDir) {
+    private static TreeMap<String, String> getRemoteBranches(File remoteDir) {
         File remoteBranchesFile = join(remoteDir, "branches");
         TreeMap<String, String> remoteBranches;
         if (remoteBranchesFile.exists()) {
@@ -966,7 +950,7 @@ public class Repository {
     }
 
     /** Save remote branches */
-    private static void saveRemoteBranches(File remoteDir ,TreeMap<String, String> remoteBranches) {
+    private static void saveRemoteBranches(File remoteDir, TreeMap<String, String> remoteBranches) {
         File remoteBranchesFile = join(remoteDir, "branches");
         Utils.writeObject(remoteBranchesFile, remoteBranches);
     }
