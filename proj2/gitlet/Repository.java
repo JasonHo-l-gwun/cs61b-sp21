@@ -562,6 +562,16 @@ public class Repository {
         return Utils.readObject(commitFile, Commit.class);
     }
 
+    /** Pass in the uid of the commit and the remote directory,
+     *  return the corresponding commit */
+    private static Commit getCommit(File remoteCommitDir, String commitUid) {
+        List<String> remoteCommitList = Utils.plainFilenamesIn(remoteCommitDir);
+        if (commitUid == null || !remoteCommitList.contains(commitUid)) {
+            return null;
+        }
+        File commitFile = Utils.join(remoteCommitDir, commitUid);
+        return Utils.readObject(commitFile, Commit.class);
+    }
     /** To save a new commit to the target file */
     private static void saveCommit(Commit newCommit) {
         String commitHash = newCommit.getUid();
@@ -667,6 +677,18 @@ public class Repository {
             gatherAncestors(parent, ancestors);
         }
     }
+    /** To get the remote ancestors set */
+    private static void gatherAncestors(File remoteCommitDir, String uid, Set<String> ancestors) {
+        if (uid == null || ancestors.contains(uid)) {
+            return;
+        }
+        ancestors.add(uid);
+        Commit commit = getCommit(remoteCommitDir, uid);
+        for (String parent : commit.getParents()) {
+            gatherAncestors(parent, ancestors);
+        }
+    }
+
 
     /** To find the spilt point */
     public static String findSplitPoint(String uid1, String uid2) {
@@ -928,7 +950,7 @@ public class Repository {
         File remoteBlobDir = join(remoteDir, "blobs");
 
         Set<String> remoteAncestors = new HashSet<>();
-        gatherAncestors(remoteHead, remoteAncestors);
+        gatherAncestors(remoteCommitDir, remoteHead, remoteAncestors);
         for (String commitId : remoteAncestors) {
             File localCommitFile = join(COMMIT_DIR, commitId);
             File remoteCommitFile = join(remoteCommitDir, commitId);
