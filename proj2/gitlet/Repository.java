@@ -51,7 +51,7 @@ public class Repository {
         }
 
         GITLET_DIR.mkdir();
-        Commit initCommit = new Commit("initial commit", new Date(0), null, null, null);
+        Commit initCommit = new Commit("initial commit", new Date(0), null, null);
         initCommit.setUid();
         String commitHash = initCommit.getUid();
         COMMIT_DIR.mkdir();
@@ -84,7 +84,6 @@ public class Repository {
         /** If the staged for addition has the file is same to the add file,don't add it */
         boolean sameFileInStage = addStaged.containsKey(fileName) && addStaged.get(fileName).equals(fileHash);
         if (sameFileInStage) return;
-        Commit currentCommit = getCurrentCommit();
         /** If the current version has the file is same to the add file
          * however it's different to the file in the staged for addition
          * remove the file in the stage for addition
@@ -158,7 +157,9 @@ public class Repository {
             file.delete();
         }
         /** Create the new commit object*/
-        Commit newCommit = new Commit(message, currentDate, currentCommitUid, null, newBlobs);
+        ArrayList<String> parents = new ArrayList<>();
+        parents.add(currentCommitUid);
+        Commit newCommit = new Commit(message, currentDate, parents, newBlobs);
         /** Write it to the file */
         newCommit.setUid();
         saveCommit(newCommit);
@@ -193,10 +194,7 @@ public class Repository {
         if (isTrack) {
             rmStaged.put(fileName, trackedFiles.get(fileName));
             saveRmStaged(rmStaged);
-            File fileInCWD = join(CWD, fileName);
-            if (fileInCWD.exists()) {
-                restrictedDelete(fileInCWD);
-            }
+            removeFile(fileName);
         }
     }
 
@@ -326,7 +324,7 @@ public class Repository {
             System.exit(0);
         }
         String uid = branches.get(branchName);
-        rollBack(uid);
+        Checkout(uid);
         setCurrentBranch(branchName);
         saveAddStaged(new TreeMap<String,String>());
         saveRmStaged(new TreeMap<String,String>());
@@ -362,11 +360,175 @@ public class Repository {
             System.out.println("File does not exist in that commit.");
             System.exit(0);
         }
-        rollBack(uid);
+        Checkout(uid);
         TreeMap<String,String> branches = getBranches();
         branches.put(getCurrentBranchName(), uid);
         saveBranches(branches);
     }
+
+    public static void merge(String branchName) {
+        TreeMap<String, String> addition = getAddStaged();
+        TreeMap<String, String> removal = getRmStaged();
+        if (!addition.isEmpty() || !removal.isEmpty()) {
+            System.out.println("You have uncommitted changes.");
+            System.exit(0);
+        }
+        TreeMap<String, String> branches = getBranches();
+        if (!branches.containsKey(branchName)) {
+            System.out.println("A branch with that name does not exist.");
+            System.exit(0);
+        }
+        String currentBranch = getCurrentBranchName();
+        if (currentBranch.equals(branchName)) {
+            System.out.println("Cannot merge a branch with itself.");
+            System.exit(0);
+        }
+        String head1 = getCurrentCommitUid();
+        String head2 = branches.get(branchName);
+        String splitPoint = findSplitPoint(head1, head2);
+        if (splitPoint.equals(head2)) {
+            System.out.println("Given branch is an ancestor of the current branch.");
+            return;
+        } else if (splitPoint.equals(head1)) {
+            Checkout(head2);
+            System.out.println("Current branch fast-forwarded.");
+            return;
+        }
+        TreeMap<String, String> splitBlobs = getCommit(splitPoint).getBlobs();
+        TreeMap<String, String> currentBlobs = getCommit(head1).getBlobs();
+        TreeMap<String, String> givenBlobs = getCommit(head2).getBlobs();
+
+        /** Get all the files should be process */
+        Set<String> allFiles = new HashSet<>();
+        allFiles.addAll(splitBlobs.keySet());
+        allFiles.addAll(currentBlobs.keySet());
+        allFiles.addAll(givenBlobs.keySet());
+
+        boolean conflict = false; // to mark if the file is conflict
+        for (String fileName : allFiles) {
+            String spBlob = splitBlobs.get(fileName);
+            String curBlob = currentBlobs.get(fileName);
+            String givBlob = givenBlobs.get(fileName);
+
+            /** If the file is exist in the spilt point */
+            if (spBlob != null) {
+                /** Have been modified in the given branch since the split point,
+                 *  but not modified in the current branch since the split
+                 *  */
+                if (curBlob != null && curBlob.equals(spBlob) && givBlob != null && !givBlob.equals(spBlob)) {
+                    checkoutFile(fileName, givBlob);
+                    continue;
+                }
+                /** Have been modified in the current branch
+                 *  but not in the given branch since the split point */
+                if (givBlob != null && givBlob.equals(spBlob) && curBlob != null && !curBlob.equals(spBlob)) {
+                    continue;
+                }
+                /** Any files present at the split point,
+                 *  unmodified in the current branch,
+                 *  and absent in the given branch should be removed (and untracked).*/
+                if (curBlob != null && curBlob.equals(spBlob) && givBlob == null) {
+                    removeFile(fileName);
+                    stageRemoval(fileName, spBlob);
+                    continue;
+                }
+
+                /** Both current branch and given branch is changed compared to split point */
+                if ((curBlob != null && !curBlob.equals(spBlob)) && (givBlob != null && !givBlob.equals(spBlob))) {
+                    if (curBlob.equals(givBlob)) {
+                        /** Both files now have the same content */
+                        continue;
+                    } else {
+                        conflict = true;
+                        String curContent = getFileContent(curBlob);
+                        String givContent = getFileContent(givBlob);
+                        resolveConflict(fileName, curContent, givContent);
+                        continue;
+                    }
+                }
+                /** The current branch was deleted and the given branch was not modified */
+                if (curBlob == null && givBlob != null && givBlob.equals(spBlob)) {
+                    continue;
+                }
+                /** The current branch is deleted and the given branch is modified */
+                if (curBlob == null && givBlob != null && !givBlob.equals(spBlob)) {
+                    conflict = true;
+                    String givContent = getFileContent(givBlob);
+                    resolveConflict(fileName, "", givContent);
+                    continue;
+                }
+                /** The current branch is modified and the given branch is deleted */
+                if (givBlob == null && curBlob != null && !curBlob.equals(spBlob)) {
+                    conflict = true;
+                    String curContent = getFileContent(curBlob);
+                    resolveConflict(fileName, curContent, "");
+                    continue;
+                }
+            } else {
+                /** If the file doesn't exist in the spilt point */
+                /** The file only exist in the given branch */
+                if (curBlob == null && givBlob != null) {
+                    checkoutFile(fileName, givBlob);
+                    continue;
+                }
+                /** The file only exist in the current branch */
+                if (curBlob != null && givBlob == null) {
+                    continue;
+                }
+                /**  Both current branch and given have the file */
+                if (curBlob != null && givBlob != null) {
+                    if (curBlob.equals(givBlob)) {
+                    } else {
+                        conflict = true;
+                        String curContent = getFileContent(curBlob);
+                        String givContent = getFileContent(givBlob);
+                        resolveConflict(fileName, curContent, givContent);
+                    }
+                }
+            }
+        }
+
+        /** Update the new blobs for merge commit */
+        TreeMap<String, String> newBlobs = new TreeMap<>(currentBlobs);
+        TreeMap<String, String> addStaged = getAddStaged();
+        TreeMap<String, String> rmStaged = getRmStaged();
+        for (String fileName : addStaged.keySet()) {
+            String blobHash = addStaged.get(fileName);
+            newBlobs.put(fileName, blobHash);
+            File blobFile = join(BLOB_DIR, blobHash);
+            File stagingFile = join(ADD_DIR, blobHash);
+            if (!blobFile.exists()) {
+                writeToFile(stagingFile, blobFile);
+            }
+            stagingFile.delete();
+        }
+        for (String fileName : rmStaged.keySet()) {
+            newBlobs.remove(fileName);
+            File removalFile = join(RM_DIR, rmStaged.get(fileName));
+            removalFile.delete();
+        }
+        /** Create the merge commit */
+        ArrayList<String> parents = new ArrayList<>();
+        parents.add(head1);
+        parents.add(head2);
+        String mergeMessage = "Merged " + branchName + " into " + currentBranch + ".";
+        Date currentDate = new Date();
+        Commit mergeCommit = new Commit(mergeMessage, currentDate, parents, newBlobs);
+        mergeCommit.setUid();
+        saveCommit(mergeCommit);
+        /** Update the branches */
+        TreeMap<String, String> branchesUpdated = getBranches();
+        branchesUpdated.put(currentBranch, mergeCommit.getUid());
+        saveBranches(branchesUpdated);
+        /** Clear the staged */
+        saveAddStaged(new TreeMap<>());
+        saveRmStaged(new TreeMap<>());
+
+        if (conflict) {
+            System.out.println("Encountered a merge conflict.");
+        }
+    }
+
     /** ----------------------------------Helper function------------------------------- */
     /** Judge if a .gitlet folder exists */
     private static void hasGitletDir() {
@@ -416,7 +578,7 @@ public class Repository {
 
     /** Pass in a Commit object and return a object which is its parent */
     private static Commit getParentCommit(Commit commit) {
-        String parentCommitUid = commit.getParent1();
+        String parentCommitUid = commit.getParents().get(1);
         if (parentCommitUid == null) return null;
         File parentCommitFile = Utils.join(COMMIT_DIR, parentCommitUid);
         return Utils.readObject(parentCommitFile, Commit.class);
@@ -438,9 +600,9 @@ public class Repository {
     private static void printLog(Commit commit) {
         System.out.println("===");
         System.out.println("commit " + commit.getUid());
-        if (commit.getParent2() != null) {
-            String p1 = commit.getParent1().substring(0,7);
-            String p2 = commit.getParent2().substring(0,7);
+        if (commit.getParents().size() > 1) {
+            String p1 = commit.getParents().get(1).substring(0,7);
+            String p2 = commit.getParents().get(2).substring(0,7);
             System.out.println("Merge: " + p1 + " " + p2);
         }
         Formatter formatter = new Formatter(Locale.US);
@@ -449,8 +611,7 @@ public class Repository {
                 commit.getDate()
         ).toString();
         System.out.println("Date: " + dateStr);
-        System.out.println(commit.getMessage());
-        System.out.println();
+        System.out.println(commit.getMessage() + "\n");
     }
     /** To get the Workspace Files */
     private static List<String> getWorkspaceFiles() {
@@ -463,7 +624,7 @@ public class Repository {
     }
     /** To write read file contents to write file */
     private static void writeToFile(File readFile, File writeFIle) {
-        byte[] fileContent = Utils.readContents(readFile);
+        String fileContent = Utils.readContentsAsString(readFile);
         Utils.writeContents(writeFIle, fileContent);
     }
     /** To get the commit file as a list */
@@ -488,8 +649,8 @@ public class Repository {
         Commit currentCommit = getCurrentCommit();
         return currentCommit.getUid();
     }
-    /** Roll back to the specified commit */
-    private static void rollBack(String uid) {
+    /** Check out to the specified commit */
+    private static void Checkout(String uid) {
         List<String> unTrackedFiles = new ArrayList<>();
         List<String> WorkspaceFiles = getWorkspaceFiles();
         TreeMap<String,String> currentCommitBlobs = getCurrentCommitBlobs();
@@ -506,14 +667,87 @@ public class Repository {
             }
         }
         for (String fileName : WorkspaceFiles) {
-            Utils.restrictedDelete(fileName);
+            removeFile(fileName);
         }
         for (String fileName : targetBlobs.keySet()) {
             File readFile = Utils.join(BLOB_DIR, targetBlobs.get(fileName));
             File writeFile = Utils.join(CWD, fileName);
             writeToFile(readFile,writeFile);
         }
+    }
+    /** To get the ancestors set */
+    private static void gatherAncestors(String uid, Set<String> ancestors) {
+        if (uid == null || ancestors.contains(uid)) return;
+        ancestors.add(uid);
+        Commit commit = getCommit(uid);
+        for (String parent : commit.getParents()) {
+            gatherAncestors(parent, ancestors);
+        }
+    }
+    /** To find the spilt point */
+    public static String findSplitPoint(String uid1, String uid2) {
+        Set<String> commit1Ancestors = new HashSet<>();
+        gatherAncestors(uid1, commit1Ancestors);
+        Set<String> visited = new HashSet<>();
+        Queue<String> queue = new LinkedList<>();
+        queue.add(uid2);
+        while (!queue.isEmpty()) {
+            String uid = queue.poll();
+            Commit commit = getCommit(uid);
+            if (commit1Ancestors.contains(uid)) return uid;
+            for (String parent : commit.getParents()) {
+                if (parent != null && !visited.contains(parent)) {
+                    queue.add(parent);
+                    visited.add(parent);
+                }
+            }
+        }
+        return null;
+    }
+    /** Check out a blob,add it into staged for addition and update */
+    private static void checkoutFile(String fileName, String blobHash) {
+        File blobFile = join(BLOB_DIR, blobHash);
+        File targetFile = join(CWD, fileName);
+        writeToFile(blobFile, targetFile);
+        TreeMap<String, String> addStaged = getAddStaged();
+        addStaged.put(fileName, blobHash);
+        saveAddStaged(addStaged);
+    }
 
+    /** Remove a file in Workspace */
+    private static void removeFile(String fileName) {
+        File targetFile = join(CWD, fileName);
+        if (targetFile.exists()) {
+            restrictedDelete(targetFile);
+        }
+    }
+
+    /** Add the file into staged for removal and update */
+    private static void stageRemoval(String fileName, String blobHash) {
+        TreeMap<String, String> rmStaged = getRmStaged();
+        rmStaged.put(fileName, blobHash);
+        saveRmStaged(rmStaged);
+    }
+
+    /** Product the conflict */
+    private static void resolveConflict(String fileName, String curContent, String givContent) {
+        String conflictContent = "<<<<<<< HEAD\n" + curContent + "=======\n" + givContent + ">>>>>>>\n";
+        File targetFile = join(CWD, fileName);
+        Utils.writeContents(targetFile, conflictContent);
+        String conflictHash = Utils.sha1(conflictContent);
+        TreeMap<String, String> addStaged = getAddStaged();
+        addStaged.put(fileName, conflictHash);
+        saveAddStaged(addStaged);
+        File stagingFile = join(ADD_DIR, conflictHash);
+        if (!stagingFile.exists()) {
+            Utils.writeContents(stagingFile, conflictContent);
+        }
+    }
+
+    /** Get the blob contents from specific blob */
+    private static String getFileContent(String blobHash) {
+        File blobFile = join(BLOB_DIR, blobHash);
+        return Utils.readContentsAsString(blobFile);
     }
 }
 

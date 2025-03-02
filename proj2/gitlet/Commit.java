@@ -29,8 +29,7 @@ public class Commit implements Serializable {
     /** THe hash of this Commit.*/
     private String uid;
     /** THe hash of this Commit's parent 1.*/
-    private final String parent1;
-    private final String parent2;
+    private final ArrayList<String> parent;
     /** THe hash of this Commit's parent 2.*/
     // private final String parents2;
     /** THe blobs of this Commit.*/
@@ -38,20 +37,18 @@ public class Commit implements Serializable {
 
 
     /* TODO: fill in the rest of this class. */
-    Commit(String message, Date date, String parent1, String parent2, TreeMap<String,String> blobs) {
+    Commit(String message, Date date, ArrayList<String> parent, TreeMap<String,String> blobs) {
         this.date = date;
         this.message = message;
         this.blobs = blobs;
-        this.parent1 = parent1;
-        this.parent2 = parent2;
+        this.parent = parent;
     }
 
     public void setUid() {
         List<Object> list = new ArrayList<>();
         list.add(Utils.serialize(message));
         list.add(Utils.serialize(date));
-        list.add(Utils.serialize(parent1));
-        if (parent2 != null) list.add(Utils.serialize(parent2));
+        list.add(Utils.serialize(parent));
         list.add(Utils.serialize(blobs));
         this.uid = Utils.sha1(list);
     }
@@ -64,13 +61,11 @@ public class Commit implements Serializable {
         return blobs == null ? new TreeMap<>() : blobs;
     }
 
-    public String getParent1() {
-        return this.parent1;
+    public ArrayList<String> getParents() {
+        if (this.parent == null) return new ArrayList<String>();
+        return this.parent;
     }
 
-    public String getParent2() {
-        return this.parent2;
-    }
     public String getMessage() {
         return this.message;
     }
