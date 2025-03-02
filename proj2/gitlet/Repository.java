@@ -970,7 +970,6 @@ public class Repository {
             }
         }
     }
-
     /** Save remote branches */
     private static void saveRemoteBranches(File remoteDir, TreeMap<String, String> remoteBranches) {
         File remoteBranchesFile = join(remoteDir, "branches");
