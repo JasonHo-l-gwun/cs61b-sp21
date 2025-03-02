@@ -283,7 +283,8 @@ public class Repository {
         writeToFile(readFile, writeFile);
     }
 
-    public static void checkout2(String uid, String fileName) {
+    public static void checkout2(String uid1, String fileName) {
+        String uid = resolveShortCommitID(uid1);
         Commit commit = getCommit(uid);
         if (commit == null) {
             System.out.println("No commit with that id exists.");
@@ -700,45 +701,34 @@ public class Repository {
     private static boolean mergeHelper(TreeMap<String, String> splitBlobs,
                                        TreeMap<String, String> currentBlobs,
                                        TreeMap<String, String> givenBlobs) {
-        /** Get all the files should be processed */
         Set<String> allFiles = new HashSet<>();
         allFiles.addAll(splitBlobs.keySet());
         allFiles.addAll(currentBlobs.keySet());
         allFiles.addAll(givenBlobs.keySet());
-        boolean conflict = false; // to mark if any file is in conflict
+        boolean conflict = false;
         for (String fileName : allFiles) {
             String spBlob = splitBlobs.get(fileName);
             String curBlob = currentBlobs.get(fileName);
             String givBlob = givenBlobs.get(fileName);
-            /** If the file exists in the split point */
             if (spBlob != null) {
-                /** Have been modified in the given branch since the split point,
-                 *  but not modified in the current branch since the split point.
-                 */
                 if ((curBlob != null) && curBlob.equals(spBlob)
                         && (givBlob != null) && !givBlob.equals(spBlob)) {
                     checkoutFile(fileName, givBlob);
                     continue;
                 }
-                /** Have been modified in the current branch
-                 * but not in the given branch since the split point */
+
                 if ((givBlob != null) && givBlob.equals(spBlob)
                         && (curBlob != null) && !curBlob.equals(spBlob)) {
                     continue;
                 }
-                /** Any files present at the split point, unmodified in the current branch,
-                 *  and absent in the given branch should be removed (and untracked).
-                 */
                 if ((curBlob != null) && curBlob.equals(spBlob) && (givBlob == null)) {
                     removeFile(fileName);
                     stageRemoval(fileName, spBlob);
                     continue;
                 }
-                /** Both current branch and given branch are changed compared to split point */
                 if ((curBlob != null) && !curBlob.equals(spBlob)
                         && (givBlob != null) && !givBlob.equals(spBlob)) {
                     if (curBlob.equals(givBlob)) {
-                        // Both files now have the same content
                         continue;
                     } else {
                         conflict = true;
@@ -748,18 +738,15 @@ public class Repository {
                         continue;
                     }
                 }
-                /** The current branch was deleted and the given branch was not modified */
                 if ((curBlob == null) && (givBlob != null) && givBlob.equals(spBlob)) {
                     continue;
                 }
-                /** The current branch is deleted and the given branch is modified */
                 if ((curBlob == null) && (givBlob != null) && !givBlob.equals(spBlob)) {
                     conflict = true;
                     String givContent = getFileContent(givBlob);
                     resolveConflict(fileName, "", givContent);
                     continue;
                 }
-                /** The current branch is modified and the given branch is deleted */
                 if ((givBlob == null) && (curBlob != null) && !curBlob.equals(spBlob)) {
                     conflict = true;
                     String curContent = getFileContent(curBlob);
@@ -767,20 +754,15 @@ public class Repository {
                     continue;
                 }
             } else {
-                /** If the file doesn't exist in the split point */
-                /** The file only exists in the given branch */
                 if ((curBlob == null) && (givBlob != null)) {
                     checkoutFile(fileName, givBlob);
                     continue;
                 }
-                /** The file only exists in the current branch */
                 if ((curBlob != null) && (givBlob == null)) {
                     continue;
                 }
-                /** Both current branch and given branch have the file */
                 if ((curBlob != null) && (givBlob != null)) {
-                    if (curBlob.equals(givBlob)) {
-                    } else {
+                    if (!curBlob.equals(givBlob)) {
                         conflict = true;
                         String curContent = getFileContent(curBlob);
                         String givContent = getFileContent(givBlob);
@@ -790,5 +772,26 @@ public class Repository {
             }
         }
         return conflict;
+    }
+    /** Resolve the short id */
+    public static String resolveShortCommitID(String shortID) {
+        if (shortID.length() == 40) {
+            return shortID;
+        }
+        List<String> commitIDs = getCommitList();
+        List<String> matches = new ArrayList<>();
+        for (String id : commitIDs) {
+            if (id.startsWith(shortID)) {
+                matches.add(id);
+            }
+        }
+        if (matches.isEmpty()) {
+            System.out.println("No commit with that id exists.");
+            System.exit(0);
+        }
+        if (matches.size() > 1) {
+            System.exit(0);
+        }
+        return matches.get(0);
     }
 }
