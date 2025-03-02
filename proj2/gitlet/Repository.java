@@ -345,7 +345,7 @@ public class Repository {
     public static void reset(String uid) {
         Commit commit = getCommit(uid);
         if (commit == null) {
-            System.out.println("File does not exist in that commit.");
+            System.out.println("No commit with that id exists.");
             System.exit(0);
         }
         checkout(uid);

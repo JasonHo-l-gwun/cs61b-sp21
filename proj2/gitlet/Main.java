@@ -78,14 +78,14 @@ public class Main {
                     System.exit(0);
                 }
                 if (args.length == 3) {
-                    if (args[1].equals("--")) {
+                    if (!args[1].equals("--")) {
                         System.out.println("Incorrect operands.");
                         System.exit(0);
                     }
                     Repository.checkout1(args[2]);
                 }
                 if (args.length == 4) {
-                    if (args[2].equals("--")) {
+                    if (!args[2].equals("--")) {
                         System.out.println("Incorrect operands.");
                         System.exit(0);
                     }
