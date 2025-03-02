@@ -1,43 +1,31 @@
 package gitlet;
 
-// TODO: any imports you need here
-
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.TreeMap;
 
-/** Represents a gitlet commit object.
- *  TODO: It's a good idea to give a description here of what else this Class
- *  does at a high level.
+/** Represents a Gitlet commit object.
+ * This class stores commit message, date, parent commit hashes, and a mapping
+ * from filenames to blob hashes.
  *
- *  @author Jason Ho
+ * @author Jason Ho
  */
 public class Commit implements Serializable {
-    /**
-     * TODO: add instance variables here.
-     *
-     * List all instance variables of the Commit class here with a useful
-     * comment above them describing what that variable represents and how that
-     * variable is used. We've provided one example for `message`.
-     */
 
-    /** The message of this Commit. */
+    /** The message of this commit. */
     private final String message;
-    /** THe author of this Commit.*/
-    private String author;
-    /** THe timestamp of this Commit.*/
+    /** The timestamp of this commit. */
     private final Date date;
-    /** THe hash of this Commit.*/
+    /** The hash (UID) of this commit. */
     private String uid;
-    /** THe hash of this Commit's parent 1.*/
+    /** The hash of this commit's parent. */
     private final ArrayList<String> parent;
-    /** THe hash of this Commit's parent 2.*/
-    // private final String parents2;
-    /** THe blobs of this Commit.*/
-    private final TreeMap<String,String> blobs;
+    /** The blobs mapping (filename -> blob hash) of this commit. */
+    private final TreeMap<String, String> blobs;
 
-
-    /* TODO: fill in the rest of this class. */
-    Commit(String message, Date date, ArrayList<String> parent, TreeMap<String,String> blobs) {
+    Commit(String message, Date date, ArrayList<String> parent, TreeMap<String, String> blobs) {
         this.date = date;
         this.message = message;
         this.blobs = blobs;
@@ -57,12 +45,14 @@ public class Commit implements Serializable {
         return uid;
     }
 
-    public TreeMap<String,String> getBlobs() {
-        return blobs == null ? new TreeMap<>() : blobs;
+    public TreeMap<String, String> getBlobs() {
+        return (blobs == null) ? new TreeMap<>() : blobs;
     }
 
     public ArrayList<String> getParents() {
-        if (this.parent == null) return new ArrayList<String>();
+        if (this.parent == null) {
+            return new ArrayList<>();
+        }
         return this.parent;
     }
 
@@ -71,6 +61,6 @@ public class Commit implements Serializable {
     }
 
     public Date getDate() {
-        return  this.date;
+        return this.date;
     }
 }
