@@ -29,14 +29,14 @@ public class Repository {
     public static final File COMMIT_DIR = join(GITLET_DIR, "commits");
     /** The blobs directory */
     public static final File BLOB_DIR = join(GITLET_DIR, "blobs");
-    /** The staged for addition directory store the staged for removal data and every file for removal */
+    /** The staged for addition directory */
     public static final File ADD_DIR = join(GITLET_DIR, "add");
     /** The add staged File to store the staged for addition data */
     public static final File ADD_FILE = join(ADD_DIR, "addStaged");
-    /** The staged for removal directory store the staged for removal data and every file for removal */
+    /** The staged for removal directory */
     public static final File RM_DIR = join(GITLET_DIR, "rm");
-    /** The remove staged File to store the staged for addition data */
-    public static final File RM_FILE = join(RM_DIR, "addStaged");
+    /** The remove staged File to store the staged for removal data */
+    public static final File RM_FILE = join(RM_DIR, "rmStaged");
     /** The branch file to store every branch's data */
     public static final File BRANCHES_FILE = join(GITLET_DIR, "branches");
     /** The current branch file to store the current branch data */
@@ -44,7 +44,8 @@ public class Repository {
 
     public static void init() {
         if (GITLET_DIR.exists()) {
-            System.out.println("A Gitlet version-control system already exists in the current directory.");
+            System.out.println("A Gitlet version-control system " +
+                    "already exists in the current directory.");
             System.exit(0);
         }
         GITLET_DIR.mkdir();
@@ -77,7 +78,8 @@ public class Repository {
         TreeMap<String, String> rmStaged = getRmStaged();
         String fileHash = getFileHash(addFile);
         /** If the staged for addition has the file is same to the add file, don't add it */
-        boolean sameFileInStage = addStaged.containsKey(fileName) && addStaged.get(fileName).equals(fileHash);
+        boolean sameFileInStage = addStaged.containsKey(fileName)
+                                    && addStaged.get(fileName).equals(fileHash);
         if (sameFileInStage) {
             return;
         }
@@ -420,7 +422,8 @@ public class Repository {
                     checkoutFile(fileName, givBlob);
                     continue;
                 }
-                /** Have been modified in the current branch but not in the given branch since the split point */
+                /** Have been modified in the current branch
+                 * but not in the given branch since the split point */
                 if ((givBlob != null) && givBlob.equals(spBlob)
                         && (curBlob != null) && !curBlob.equals(spBlob)) {
                     continue;
@@ -599,7 +602,7 @@ public class Repository {
 
     /** Pass in the uid of the commit, return the corresponding commit */
     private static Commit getCommit(String commitUid) {
-        if (commitUid == null) {
+        if (commitUid == null || !getCommitList().contains(commitUid)) {
             return null;
         }
         File commitFile = Utils.join(COMMIT_DIR, commitUid);
@@ -686,7 +689,8 @@ public class Repository {
         TreeMap<String, String> targetBlobs = targetCommit.getBlobs();
         for (String fileName : untrackedFiles) {
             if (targetBlobs.containsKey(fileName)) {
-                System.out.println("There is an untracked file in the way; delete it, or add and commit it first.");
+                System.out.println("There is an untracked file in the way;" +
+                        " delete it, or add and commit it first.");
                 System.exit(0);
             }
         }
@@ -762,7 +766,9 @@ public class Repository {
 
     /** Produce the conflict markers */
     private static void resolveConflict(String fileName, String curContent, String givContent) {
-        String conflictContent = "<<<<<<< HEAD\n" + curContent + "=======\n" + givContent + ">>>>>>>\n";
+        String conflictContent = "<<<<<<< HEAD\n"
+                                    + curContent + "=======\n"
+                                        + givContent + ">>>>>>>\n";
         File targetFile = join(CWD, fileName);
         Utils.writeContents(targetFile, conflictContent);
         String conflictHash = Utils.sha1(conflictContent);
