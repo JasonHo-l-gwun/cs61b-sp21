@@ -138,22 +138,7 @@ public class Repository {
         String currentCommitUid = getCurrentCommitUid();
         TreeMap<String, String> newBlobs = new TreeMap<>(getCurrentCommitBlobs());
         /** Update the map according to the stage area */
-        for (String fileName : addStaged.keySet()) {
-            String fileHash = addStaged.get(fileName);
-            newBlobs.put(fileName, fileHash);
-            File file = join(ADD_DIR, fileHash);
-            File blob = join(BLOB_DIR, fileHash);
-            if (!blob.exists()) {
-                writeToFile(file, blob);
-            }
-            file.delete();
-        }
-        for (String fileName : rmStaged.keySet()) {
-            String fileHash = rmStaged.get(fileName);
-            newBlobs.remove(fileName);
-            File file = join(RM_DIR, fileHash);
-            file.delete();
-        }
+        updateBlobs(newBlobs);
         /** Create the new commit object */
         ArrayList<String> parents = new ArrayList<>();
         parents.add(currentCommitUid);
@@ -301,7 +286,7 @@ public class Repository {
     public static void checkout2(String uid, String fileName) {
         Commit commit = getCommit(uid);
         if (commit == null) {
-            System.out.println("File does not exist in that commit.");
+            System.out.println("No commit with that id exists.");
             System.exit(0);
         }
         TreeMap<String, String> commitBlobs = commit.getBlobs();
@@ -492,23 +477,7 @@ public class Repository {
         }
         /** Update the new blobs for merge commit */
         TreeMap<String, String> newBlobs = new TreeMap<>(currentBlobs);
-        TreeMap<String, String> addStaged = getAddStaged();
-        TreeMap<String, String> rmStaged = getRmStaged();
-        for (String fileName : addStaged.keySet()) {
-            String blobHash = addStaged.get(fileName);
-            newBlobs.put(fileName, blobHash);
-            File blobFile = join(BLOB_DIR, blobHash);
-            File stagingFile = join(ADD_DIR, blobHash);
-            if (!blobFile.exists()) {
-                writeToFile(stagingFile, blobFile);
-            }
-            stagingFile.delete();
-        }
-        for (String fileName : rmStaged.keySet()) {
-            newBlobs.remove(fileName);
-            File removalFile = join(RM_DIR, rmStaged.get(fileName));
-            removalFile.delete();
-        }
+        updateBlobs(newBlobs);
         /** Create the merge commit */
         ArrayList<String> parents = new ArrayList<>();
         parents.add(head1);
@@ -700,8 +669,9 @@ public class Repository {
             File writeFile = Utils.join(CWD, fileName);
             writeToFile(readFile, writeFile);
         }
+        saveAddStaged(new TreeMap<String, String>());
+        saveRmStaged(new TreeMap<String, String>());
     }
-
     /** To get the ancestors set */
     private static void gatherAncestors(String uid, Set<String> ancestors) {
         if (uid == null || ancestors.contains(uid)) {
@@ -783,5 +753,25 @@ public class Repository {
     private static String getFileContent(String blobHash) {
         File blobFile = join(BLOB_DIR, blobHash);
         return Utils.readContentsAsString(blobFile);
+    }
+    /** Update the commit blobs */
+    private static void updateBlobs(TreeMap<String, String> blobs) {
+        TreeMap<String, String> addStaged = getAddStaged();
+        TreeMap<String, String> rmStaged = getRmStaged();
+        for (String fileName : addStaged.keySet()) {
+            String blobHash = addStaged.get(fileName);
+            blobs.put(fileName, blobHash);
+            File blobFile = join(BLOB_DIR, blobHash);
+            File stagingFile = join(ADD_DIR, blobHash);
+            if (!blobFile.exists()) {
+                writeToFile(stagingFile, blobFile);
+            }
+            stagingFile.delete();
+        }
+        for (String fileName : rmStaged.keySet()) {
+            blobs.remove(fileName);
+            File removalFile = join(RM_DIR, rmStaged.get(fileName));
+            removalFile.delete();
+        }
     }
 }
