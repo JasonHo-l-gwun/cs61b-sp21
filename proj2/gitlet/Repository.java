@@ -95,8 +95,6 @@ public class Repository {
             File stagedFile = join(ADD_DIR, stagedHash);
             stagedFile.delete();
             return;
-        } else if (sameFileInCommit) {
-            return;
         }
         /** If the staged for removal has the same file as the addFile,
          *  remove it from the staged for removal.
@@ -107,6 +105,9 @@ public class Repository {
             saveRmStaged(rmStaged);
             File stagedFile = join(RM_DIR, stagedHash);
             stagedFile.delete();
+        }
+        if (sameFileInCommit) {
+            return;
         }
         addStaged.put(fileName, fileHash);
         saveAddStaged(addStaged);
