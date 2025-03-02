@@ -468,7 +468,7 @@ public class Repository {
             System.exit(0);
         }
         TreeMap<String, String> remoteBranches = getRemoteBranches(remoteGitletDir);
-        if (remoteBranches.containsKey(remoteBranchName)) {
+        if (!remoteBranches.containsKey(remoteBranchName)) {
             System.out.println("That remote does not have that branch.");
             System.exit(0);
         }
