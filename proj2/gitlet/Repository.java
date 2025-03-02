@@ -385,96 +385,8 @@ public class Repository {
         TreeMap<String, String> splitBlobs = getCommit(splitPoint).getBlobs();
         TreeMap<String, String> currentBlobs = getCommit(head1).getBlobs();
         TreeMap<String, String> givenBlobs = getCommit(head2).getBlobs();
-        /** Get all the files should be processed */
-        Set<String> allFiles = new HashSet<>();
-        allFiles.addAll(splitBlobs.keySet());
-        allFiles.addAll(currentBlobs.keySet());
-        allFiles.addAll(givenBlobs.keySet());
         boolean conflict = false; // to mark if any file is in conflict
-        for (String fileName : allFiles) {
-            String spBlob = splitBlobs.get(fileName);
-            String curBlob = currentBlobs.get(fileName);
-            String givBlob = givenBlobs.get(fileName);
-            /** If the file exists in the split point */
-            if (spBlob != null) {
-                /** Have been modified in the given branch since the split point,
-                 *  but not modified in the current branch since the split point.
-                 */
-                if ((curBlob != null) && curBlob.equals(spBlob)
-                        && (givBlob != null) && !givBlob.equals(spBlob)) {
-                    checkoutFile(fileName, givBlob);
-                    continue;
-                }
-                /** Have been modified in the current branch
-                 * but not in the given branch since the split point */
-                if ((givBlob != null) && givBlob.equals(spBlob)
-                        && (curBlob != null) && !curBlob.equals(spBlob)) {
-                    continue;
-                }
-                /** Any files present at the split point, unmodified in the current branch,
-                 *  and absent in the given branch should be removed (and untracked).
-                 */
-                if ((curBlob != null) && curBlob.equals(spBlob) && (givBlob == null)) {
-                    removeFile(fileName);
-                    stageRemoval(fileName, spBlob);
-                    continue;
-                }
-                /** Both current branch and given branch are changed compared to split point */
-                if ((curBlob != null) && !curBlob.equals(spBlob)
-                        && (givBlob != null) && !givBlob.equals(spBlob)) {
-                    if (curBlob.equals(givBlob)) {
-                        // Both files now have the same content
-                        continue;
-                    } else {
-                        conflict = true;
-                        String curContent = getFileContent(curBlob);
-                        String givContent = getFileContent(givBlob);
-                        resolveConflict(fileName, curContent, givContent);
-                        continue;
-                    }
-                }
-                /** The current branch was deleted and the given branch was not modified */
-                if ((curBlob == null) && (givBlob != null) && givBlob.equals(spBlob)) {
-                    continue;
-                }
-                /** The current branch is deleted and the given branch is modified */
-                if ((curBlob == null) && (givBlob != null) && !givBlob.equals(spBlob)) {
-                    conflict = true;
-                    String givContent = getFileContent(givBlob);
-                    resolveConflict(fileName, "", givContent);
-                    continue;
-                }
-                /** The current branch is modified and the given branch is deleted */
-                if ((givBlob == null) && (curBlob != null) && !curBlob.equals(spBlob)) {
-                    conflict = true;
-                    String curContent = getFileContent(curBlob);
-                    resolveConflict(fileName, curContent, "");
-                    continue;
-                }
-            } else {
-                /** If the file doesn't exist in the split point */
-                /** The file only exists in the given branch */
-                if ((curBlob == null) && (givBlob != null)) {
-                    checkoutFile(fileName, givBlob);
-                    continue;
-                }
-                /** The file only exists in the current branch */
-                if ((curBlob != null) && (givBlob == null)) {
-                    continue;
-                }
-                /** Both current branch and given branch have the file */
-                if ((curBlob != null) && (givBlob != null)) {
-                    if (curBlob.equals(givBlob)) {
-                        continue;
-                    } else {
-                        conflict = true;
-                        String curContent = getFileContent(curBlob);
-                        String givContent = getFileContent(givBlob);
-                        resolveConflict(fileName, curContent, givContent);
-                    }
-                }
-            }
-        }
+        conflict = mergeHelper(splitBlobs, currentBlobs, givenBlobs);
         /** Update the new blobs for merge commit */
         TreeMap<String, String> newBlobs = new TreeMap<>(currentBlobs);
         updateBlobs(newBlobs);
@@ -554,7 +466,6 @@ public class Repository {
 
     /** Pass in a Commit object and return a object which is its parent */
     private static Commit getParentCommit(Commit commit) {
-        // 对于普通提交，返回第一个父提交；对于合并提交，返回第二个父提交不用于 log 遍历
         ArrayList<String> parents = commit.getParents();
         if (parents.isEmpty()) {
             return null;
@@ -784,5 +695,100 @@ public class Repository {
             File removalFile = join(RM_DIR, rmStaged.get(fileName));
             removalFile.delete();
         }
+    }
+    /** To help merge method */
+    private static boolean mergeHelper(TreeMap<String, String> splitBlobs,
+                                       TreeMap<String, String> currentBlobs,
+                                       TreeMap<String, String> givenBlobs) {
+        /** Get all the files should be processed */
+        Set<String> allFiles = new HashSet<>();
+        allFiles.addAll(splitBlobs.keySet());
+        allFiles.addAll(currentBlobs.keySet());
+        allFiles.addAll(givenBlobs.keySet());
+        boolean conflict = false; // to mark if any file is in conflict
+        for (String fileName : allFiles) {
+            String spBlob = splitBlobs.get(fileName);
+            String curBlob = currentBlobs.get(fileName);
+            String givBlob = givenBlobs.get(fileName);
+            /** If the file exists in the split point */
+            if (spBlob != null) {
+                /** Have been modified in the given branch since the split point,
+                 *  but not modified in the current branch since the split point.
+                 */
+                if ((curBlob != null) && curBlob.equals(spBlob)
+                        && (givBlob != null) && !givBlob.equals(spBlob)) {
+                    checkoutFile(fileName, givBlob);
+                    continue;
+                }
+                /** Have been modified in the current branch
+                 * but not in the given branch since the split point */
+                if ((givBlob != null) && givBlob.equals(spBlob)
+                        && (curBlob != null) && !curBlob.equals(spBlob)) {
+                    continue;
+                }
+                /** Any files present at the split point, unmodified in the current branch,
+                 *  and absent in the given branch should be removed (and untracked).
+                 */
+                if ((curBlob != null) && curBlob.equals(spBlob) && (givBlob == null)) {
+                    removeFile(fileName);
+                    stageRemoval(fileName, spBlob);
+                    continue;
+                }
+                /** Both current branch and given branch are changed compared to split point */
+                if ((curBlob != null) && !curBlob.equals(spBlob)
+                        && (givBlob != null) && !givBlob.equals(spBlob)) {
+                    if (curBlob.equals(givBlob)) {
+                        // Both files now have the same content
+                        continue;
+                    } else {
+                        conflict = true;
+                        String curContent = getFileContent(curBlob);
+                        String givContent = getFileContent(givBlob);
+                        resolveConflict(fileName, curContent, givContent);
+                        continue;
+                    }
+                }
+                /** The current branch was deleted and the given branch was not modified */
+                if ((curBlob == null) && (givBlob != null) && givBlob.equals(spBlob)) {
+                    continue;
+                }
+                /** The current branch is deleted and the given branch is modified */
+                if ((curBlob == null) && (givBlob != null) && !givBlob.equals(spBlob)) {
+                    conflict = true;
+                    String givContent = getFileContent(givBlob);
+                    resolveConflict(fileName, "", givContent);
+                    continue;
+                }
+                /** The current branch is modified and the given branch is deleted */
+                if ((givBlob == null) && (curBlob != null) && !curBlob.equals(spBlob)) {
+                    conflict = true;
+                    String curContent = getFileContent(curBlob);
+                    resolveConflict(fileName, curContent, "");
+                    continue;
+                }
+            } else {
+                /** If the file doesn't exist in the split point */
+                /** The file only exists in the given branch */
+                if ((curBlob == null) && (givBlob != null)) {
+                    checkoutFile(fileName, givBlob);
+                    continue;
+                }
+                /** The file only exists in the current branch */
+                if ((curBlob != null) && (givBlob == null)) {
+                    continue;
+                }
+                /** Both current branch and given branch have the file */
+                if ((curBlob != null) && (givBlob != null)) {
+                    if (curBlob.equals(givBlob)) {
+                    } else {
+                        conflict = true;
+                        String curContent = getFileContent(curBlob);
+                        String givContent = getFileContent(givBlob);
+                        resolveConflict(fileName, curContent, givContent);
+                    }
+                }
+            }
+        }
+        return conflict;
     }
 }
