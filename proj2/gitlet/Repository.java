@@ -647,9 +647,9 @@ public class Repository {
         List<String> untrackedFiles = new ArrayList<>();
         List<String> workspaceFiles = getWorkspaceFiles();
         TreeMap<String, String> currentCommitBlobs = getCurrentCommitBlobs();
-        for (String fileName : workspaceFiles) {
-            if (!currentCommitBlobs.containsKey(fileName)) {
-                untrackedFiles.add(fileName);
+        for (String file : workspaceFiles) {
+            if (!currentCommitBlobs.containsKey(file)) {
+                untrackedFiles.add(file);
             }
         }
         Commit targetCommit = getCommit(uid);
@@ -665,9 +665,7 @@ public class Repository {
             removeFile(fileName);
         }
         for (String fileName : targetBlobs.keySet()) {
-            File readFile = Utils.join(BLOB_DIR, targetBlobs.get(fileName));
-            File writeFile = Utils.join(CWD, fileName);
-            writeToFile(readFile, writeFile);
+            checkoutFile(fileName, targetBlobs.get(fileName));
         }
         saveAddStaged(new TreeMap<String, String>());
         saveRmStaged(new TreeMap<String, String>());
@@ -709,6 +707,19 @@ public class Repository {
 
     /** Check out a blob, add it into staged for addition and update */
     private static void checkoutFile(String fileName, String blobHash) {
+        List<String> untrackedFiles = new ArrayList<>();
+        List<String> workspaceFiles = getWorkspaceFiles();
+        TreeMap<String, String> currentCommitBlobs = getCurrentCommitBlobs();
+        for (String file : workspaceFiles) {
+            if (!currentCommitBlobs.containsKey(file)) {
+                untrackedFiles.add(file);
+            }
+        }
+        if (untrackedFiles.contains(fileName)) {
+            System.out.println("There is an untracked file in the way;"
+                    + " delete it, or add and commit it first.");
+            System.exit(0);
+        }
         File blobFile = join(BLOB_DIR, blobHash);
         File targetFile = join(CWD, fileName);
         writeToFile(blobFile, targetFile);
