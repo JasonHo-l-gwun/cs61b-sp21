@@ -668,7 +668,7 @@ public class Repository {
     }
     /** To get the ancestors set */
     private static void gatherAncestors(String uid, Set<String> ancestors) {
-        if (uid == null || ancestors.contains(uid)) {
+        if (ancestors.contains(uid)) {
             return;
         }
         ancestors.add(uid);
@@ -704,7 +704,7 @@ public class Repository {
                 return uid;
             }
             for (String parent : commit.getParents()) {
-                if (parent != null && !visited.contains(parent)) {
+                if (!visited.contains(parent)) {
                     queue.add(parent);
                     visited.add(parent);
                 }

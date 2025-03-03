@@ -152,11 +152,11 @@ public class BSTMap <K extends Comparable<K>,V> implements Map61B<K, V> {
         return new BSTIterator();
     }
 
-    private void keys(Node x, Queue<K> queue) {
+    private void keysInOrder(Node x, Queue<K> queue) {
         if (x == null) return;
-        keys(x.left, queue);
+        keysInOrder(x.left, queue);
         queue.add(x.key);
-        keys(x.right, queue);
+        keysInOrder(x.right, queue);
     }
 
     public void printInOrder() {
@@ -175,7 +175,7 @@ public class BSTMap <K extends Comparable<K>,V> implements Map61B<K, V> {
 
         BSTIterator() {
             queue = new LinkedList<>();
-            keys(root, queue);
+            keysInOrder(root, queue);
         }
 
         @Override
