@@ -697,6 +697,7 @@ public class Repository {
         Set<String> visited = new HashSet<>();
         Queue<String> queue = new LinkedList<>();
         queue.add(uid2);
+        visited.add(uid2);
         while (!queue.isEmpty()) {
             String uid = queue.poll();
             Commit commit = getCommit(uid);

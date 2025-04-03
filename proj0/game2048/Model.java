@@ -140,7 +140,7 @@ public class Model extends Observable {
      */
     private void processColumn(int col) {
         int lastMergedRow = -1;
-        for(int row = board.size()-2; row >= 0; row--) {
+        for(int row = board.size() - 2; row >= 0; row--) {
             Tile curr = board.tile(col,row);
             if (curr == null) {
                 continue;
@@ -148,9 +148,7 @@ public class Model extends Observable {
 
             int newRow = findTargetRow(col, row, lastMergedRow);
             if(newRow != -1) {
-                board.move(col, newRow, curr);
-                Tile afterMoved = board.tile(col,newRow);
-                if (afterMoved.value() == curr.value() * 2) {
+                if (board.move(col, newRow, curr)) {
                     lastMergedRow = newRow;
                 }
             }
@@ -170,7 +168,7 @@ public class Model extends Observable {
             if (target == null) {
                 targetRow = newRow;
             } else if (target.value() == curr.value() && lastMergedRow != newRow) {
-                score += target.value()*2;
+                score += target.value() * 2;
                 return newRow;
             } else {
                 break;
